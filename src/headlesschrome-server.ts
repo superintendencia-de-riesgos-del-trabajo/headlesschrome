@@ -63,5 +63,4 @@ export class HeadLessChromeServer {
         return res;
     }
 
-
 }
