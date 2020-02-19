@@ -5,17 +5,19 @@ import { Browser } from "puppeteer";
 
 export class HeadLessChromeServer {
     poolSize = 4;
+    proxy:httpProxy;
     availableInstances:Browser[] = [];
     server: http.Server;
 
     constructor() {
+        this.proxy = httpProxy.createProxyServer({ ws: true });
         this.server = this.createServer();
     }
 
     async launch() {
         for (let i = 0; i < this.poolSize; i++) {
             let browser = await puppeteer.launch({
-                args: ['--no-sandbox', '--enable-logging', '--v1=1'],
+                args: ['--no-sandbox', '--enable-logging', '--v1=1','--disable-setuid-sandbox','--disable-gpu'],
                 handleSIGINT: false,
                 handleSIGTERM: false,
                 headless: true,
@@ -43,11 +45,14 @@ export class HeadLessChromeServer {
         return instance;
     }
 
-    async handleRequest(req:any, socket:any, head:any) {
+    async handleRequest(req:http.IncomingMessage, socket:any, head:any) {
         console.log(`${Date.now()} - REQUEST: ${req.url}`);
         let browser = await this.getInstance();
-        let proxy = httpProxy.createProxyServer({ws:true});
-        proxy.ws(req, socket, head, { target: browser.wsEndpoint() })
+        try {
+            this.proxy.ws(req, socket, head, { target: browser.wsEndpoint() })
+        }catch(error){
+            console.log(error);            
+        }
     }
 
     createServer(): http.Server {
