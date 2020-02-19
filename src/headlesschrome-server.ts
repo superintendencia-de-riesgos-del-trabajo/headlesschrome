@@ -6,11 +6,9 @@ import { Browser } from "puppeteer";
 export class HeadLessChromeServer {
     poolSize = 4;
     availableInstances:Browser[] = [];
-    proxy: any;
     server: http.Server;
 
     constructor() {
-        this.proxy = httpProxy.createProxyServer({ ws: true });
         this.server = this.createServer();
     }
 
@@ -25,13 +23,14 @@ export class HeadLessChromeServer {
                 ignoreHTTPSErrors: false,
             });
             browser.on('disconnected', () => this.clearInstanceAndRelease(browser));
-            console.log(`new chrome instance: ${browser.process().pid} - ${browser.wsEndpoint()}`)
+            console.log(`chrome instance: ${browser.process().pid} - ${browser.wsEndpoint()}`)
             this.availableInstances.push(browser);
         }
 
     }
 
     async clearInstanceAndRelease(browser: Browser) {
+        console.log(`liberando instancia ${browser.wsEndpoint()}`);
         (await browser.pages()).map(p => p.close())
         this.availableInstances.push(browser);
     }
@@ -45,8 +44,10 @@ export class HeadLessChromeServer {
     }
 
     async handleRequest(req:any, socket:any, head:any) {
+        console.log(`${Date.now()} - REQUEST: ${req.url}`);
         let browser = await this.getInstance();
-        this.proxy.ws(req, socket, head, { target: browser.wsEndpoint() })
+        let proxy = httpProxy.createProxyServer({ws:true});
+        proxy.ws(req, socket, head, { target: browser.wsEndpoint() })
     }
 
     createServer(): http.Server {
@@ -56,7 +57,7 @@ export class HeadLessChromeServer {
             await this.handleRequest(req,socket,head);
         })
     }
-
+    
     listen(port:number){
         let res = this.server.listen(port);
         console.log(`server listening on port: ${port}`)
