@@ -25,7 +25,7 @@ export class HeadLessChromeServer {
                 ignoreHTTPSErrors: false,
             });
             browser.on('disconnected', () => this.clearInstanceAndRelease(browser));
-            console.log(`new chrome instance: ${browser.process().pid} - ${browser.wsEndpoint}`)
+            console.log(`new chrome instance: ${browser.process().pid} - ${browser.wsEndpoint()}`)
             this.availableInstances.push(browser);
         }
 
