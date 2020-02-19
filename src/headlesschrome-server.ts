@@ -2,6 +2,7 @@ import http from "http";
 import httpProxy from "http-proxy";
 import puppeteer from "puppeteer";
 import { Browser } from "puppeteer";
+import {treekill} from "treekill";
 
 export class HeadLessChromeServer {
     poolSize = 1;
@@ -30,19 +31,25 @@ export class HeadLessChromeServer {
             ignoreDefaultArgs: ['--disable-extensions'],
             ignoreHTTPSErrors: false,
         });
+        browser.process().once("exit",async () => {
+            await this.relaunchInstance(browser);
+        })
         browser.on('disconnected', () => this.clearInstanceAndRelease(browser));
         console.log(`chrome instance: ${browser.process().pid} - ${browser.wsEndpoint()}`)
         return browser;
     }
-
+    async relaunchInstance(browser){
+        console.log("relanzando chrome")
+        browser.removeAllListeners()
+        browser.close().catch(() => { })
+        treekill(browser.process().pid,"SIGKILL")
+        this.availableInstances.push( await this.createInstance());
+    }
     async clearInstanceAndRelease(browser: Browser) {
         console.log(`liberando instancia ${browser.wsEndpoint()}`);
 
         if (browser.process().killed) {
-            console.log("relanzando chrome")
-            browser.removeAllListeners()
-            browser.close().catch(() => { })
-            this.availableInstances.push( await this.createInstance());
+            await this.relaunchInstance(browser);
         }
         else {
             console.log("reutilizando chrome");
