@@ -6,7 +6,7 @@ import treekill from "treekill";
 import _ from "lodash";
 
 export class HeadLessChromeServer {
-    poolSize = 4;
+    poolSize = 1;
     proxy: httpProxy;
     availableInstances: Browser[] = [];
     server: http.Server;
