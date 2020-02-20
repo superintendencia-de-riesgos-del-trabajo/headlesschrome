@@ -98,15 +98,17 @@ export class HeadLessChromeServer {
     }
 
     async getInstance(): Promise<Browser> {
+        console.log(`obteniendo chrome... (${this.availableInstances.length} instancias disponibles)` )
         let instance = undefined
         while (!instance) {
             instance = this.availableInstances.pop();
         }
+        console.log("instancia: ",instance.process().pid)
         return instance;
     }
 
     async handleRequest(req: http.IncomingMessage, socket: any, head: any) {
-        console.log(`${Date.now()} - REQUEST`);
+        console.log(`${Date.now().toLocaleString()} - REQUEST`);
         let browser = await this.getInstance();
 
         this.proxy.ws(req, socket, head, { target: browser.wsEndpoint() })
