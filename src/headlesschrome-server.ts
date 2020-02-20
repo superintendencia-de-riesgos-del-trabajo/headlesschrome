@@ -3,7 +3,7 @@ import httpProxy from "http-proxy";
 import puppeteer from "puppeteer";
 import { Browser } from "puppeteer";
 import treekill from "treekill";
-import _ from "lodash"
+import _ from "lodash";
 
 export class HeadLessChromeServer {
     poolSize = 4;
@@ -85,7 +85,9 @@ export class HeadLessChromeServer {
         console.log("relanzando chrome")
         browser.removeAllListeners()
         browser.close().catch(() => { })
-        treekill(browser.process().pid, "SIGKILL")
+        try {
+            treekill(browser.process().pid, "SIGKILL")
+        } catch{ }
         this.availableInstances.push(await this.createInstance());
     }
     async clearInstanceAndRelease(browser: Browser) {
