@@ -1,6 +1,11 @@
 import { Browser } from "puppeteer";
 
-
+export class IdGenerator {
+    last: number = 0
+    next(): number {
+        return ++this.last
+    }
+}
 export function extend<First, Second>(first: First, second: Second): First & Second {
     const result: Partial<First & Second> = {};
     for (const prop in first) {
@@ -14,4 +19,8 @@ export function extend<First, Second>(first: First, second: Second): First & Sec
         }
     }
     return result as First & Second;
+}
+
+export function timeout(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }

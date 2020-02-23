@@ -1,4 +1,4 @@
-import { HeadLessChromeServer } from "./headlesschrome-server"
+import { HeadLessChromeServer } from "./HeadlessChromeServer"
 
 (async () => {
   const server = new HeadLessChromeServer();
