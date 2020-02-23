@@ -2,13 +2,14 @@ import http from "http";
 import httpProxy from "http-proxy";
 import puppeteer from "puppeteer";
 import { Browser } from "puppeteer";
-import treekill from "treekill";
+import treekill from "tree-kill";
 import _ from "lodash"
+
 
 export class HeadLessChromeServer {
     poolSize = 4;
     proxy: httpProxy;
-    availableInstances: Browser[] = [];
+    chromeInstances: Browser[] = [];
     server: http.Server;
 
     constructor() {
@@ -28,11 +29,11 @@ export class HeadLessChromeServer {
             // listen for messages coming FROM the target here
             console.log(`ws opened`)
         });
-        //
-        // Listen for the `close` event on `proxy`.
-        //
+
+        // this.proxy.on("proxyRes",console.log)
+        // this.proxy.on("error",console.log)
+        // this.proxy.on("proxyRes",console.log)
         this.proxy.on('close', function (res, socket, head) {
-            // view disconnected websocket connections
             console.log(`ws closed: ${res.statusCode}`);
         });
     }
@@ -40,21 +41,31 @@ export class HeadLessChromeServer {
     async start() {
 
         for (let i = 0; i < this.poolSize; i++) {
-            this.availableInstances.push(await this.createInstance());
+            this.chromeInstances.push(await this.createInstance());
         }
 
+    }
+    async killBrowser(browser){
+        console.log("killing PID ",browser.process().pid)
+        browser.removeAllListeners()
+        await browser.close().catch(() => { })
+        treekill(browser.process().pid, "SIGKILL")
     }
 
     async createInstance() {
         let browser = await puppeteer.launch({
             args: ['--no-sandbox', '--enable-logging', '--v1=1', '--disable-setuid-sandbox', '--disable-gpu'],
             dumpio: true,
-            handleSIGINT: false,
-            handleSIGTERM: false,
+            handleSIGINT: true,
+            handleSIGTERM: true,
             headless: true,
             ignoreDefaultArgs: ['--disable-extensions'],
             ignoreHTTPSErrors: false
-        });
+        }); 
+
+        process.once("exit", async ()=>{
+            await this.killBrowser(browser)
+        })
         browser.process().once("exit", async () => {
             await this.relaunchInstance(browser);
         })
@@ -62,7 +73,10 @@ export class HeadLessChromeServer {
         // pages.forEach(this.setupPage.bind(this))
         browser.on("disconnected", () => {
             console.log('browser disconnected')
-            this.relaunchInstance(browser)
+            this.clearInstanceAndRelease(browser)
+        });
+        browser.on("targetchanged", (target) => {
+            console.log('target changed',`${target.url()}${target.type()}`);
         });
         browser.on('targetcreated', async (target) => {
             if (target)
@@ -70,6 +84,9 @@ export class HeadLessChromeServer {
         });
         browser.on('targetdestroyed', async (target) => {
             console.log(` target destroyed: ${target.url()}${target.type()}`)
+            if(target.type() == "browser"){
+                this.clearInstanceAndRelease(browser);
+            }
         });
 
         console.log(`chrome instance: ${browser.process().pid} - ${browser.wsEndpoint()}`)
@@ -86,27 +103,34 @@ export class HeadLessChromeServer {
         browser.removeAllListeners()
         browser.close().catch(() => { })
         treekill(browser.process().pid, "SIGKILL")
-        this.availableInstances.push(await this.createInstance());
+        this.chromeInstances.push(await this.createInstance());
     }
     async clearInstanceAndRelease(browser: Browser) {
         console.log("reutilizando chrome");
-        const pages = await browser.pages();
+        const [blank, ...pages] = await browser.pages();
         pages.forEach((page) => page.close());
-        this.availableInstances.push(browser);
+        this.chromeInstances.push(browser);
+    }
+
+    timeout(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     async getInstance(): Promise<Browser> {
-        let instance = undefined
+        let instance = this.chromeInstances.pop()
         while (!instance) {
-            instance = this.availableInstances.pop();
+           await this.timeout(200)
+           instance = this.chromeInstances.pop()
         }
         return instance;
     }
 
     async handleRequest(req: http.IncomingMessage, socket: any, head: any) {
-        console.log(`${Date.now()} - REQUEST`);
-        let browser = await this.getInstance();
+        console.log(`-------------------------------------------------`)
 
+        console.log(`${new Date().toISOString()} - REQUEST`);
+        let browser = await this.getInstance();
+        console.log('proxyfing to:', browser.process().pid,browser.wsEndpoint())
         this.proxy.ws(req, socket, head, { target: browser.wsEndpoint() })
     }
 
