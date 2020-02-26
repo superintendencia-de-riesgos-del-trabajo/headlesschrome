@@ -7,7 +7,7 @@ import { ChildProcess } from "child_process";
 import treeKill from "tree-kill";
 
 export class HeadLessChromeServer {
-    poolSize = process.env.POOL_SIZE || 4;
+    poolSize:number;
     httpProxy: httpProxy;
     idleBrowsers: HeadlessChromeDriver[] = [];
     httpServer: http.Server;
@@ -15,11 +15,17 @@ export class HeadLessChromeServer {
     idGenerator: IdGenerator = new IdGenerator()
 
     constructor() {
+        this.initialize()
+    }
+
+    private initialize(){
+        this.poolSize = parseInt(process.env.POOL_SIZE) || 4
         this.initializeProxy();
         this.httpServer = this.createHttpServer();
         process.on('uncaughtException', function (err) {
             console.error(err.stack);
         });
+        process.setMaxListeners(this.poolSize + 3 )
         process.once("exit", this.killBrowsers.bind(this))
     }
 
