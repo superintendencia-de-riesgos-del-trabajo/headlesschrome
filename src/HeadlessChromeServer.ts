@@ -7,7 +7,7 @@ import { ChildProcess } from "child_process";
 import treeKill from "tree-kill";
 
 export class HeadLessChromeServer {
-    poolSize = 4;
+    poolSize = process.env.POOL_SIZE || 4;
     httpProxy: httpProxy;
     idleBrowsers: HeadlessChromeDriver[] = [];
     httpServer: http.Server;
