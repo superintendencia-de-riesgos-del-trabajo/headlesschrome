@@ -1,4 +1,4 @@
-FROM node:10-slim
+FROM node:12-slim
 
 RUN apt-get update \
     && apt-get install -y libasound2 libatk1.0-0 libatk-bridge2.0-0 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgconf-2-4 \
