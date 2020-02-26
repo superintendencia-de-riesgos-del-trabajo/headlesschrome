@@ -31,8 +31,8 @@ export class HeadlessChromeDriver extends EventEmitter {
         this.jobsCount++
         this.log("job start")
         this.jobTimeout = setTimeout(() => {
-             this.emit("job_timeout", this)
-             this.log("job timed out");
+            this.emit("job_timeout", this)
+            this.log("job timed out");
         }, 30000)
     }
     private endJob() {
@@ -67,14 +67,14 @@ export class HeadlessChromeDriver extends EventEmitter {
                 this.log(`${target.type()} changed`, target.url());
             });
             this.browser.on('targetcreated', async (target) => {
-                if (!this.target && target.type() == "browser" && !this.launching ) {
-                    this.target = _.get(target,"_targetId")
+                if (!this.target && target.type() == "browser" && !this.launching) {
+                    this.target = target
                 }
                 this.log(`${target.type()} created`, target.url())
             });
             this.browser.on('targetdestroyed', async (target) => {
                 this.log(`${target.type()} closed`, target.url())
-                if (this.target==_.get(target,"_targetId")) {
+                if (this.target == target) {
                     this.target = null
                     this.endJob()
                 }
@@ -83,7 +83,7 @@ export class HeadlessChromeDriver extends EventEmitter {
             this.error("issue launching browser", e)
         }
         this.log(`browser started: ${this.browser.process().pid} - ${this.wsEndpoint}`)
-        this.launching =false
+        this.launching = false
         this.emit("launch", this)
         return this;
     }
@@ -108,9 +108,11 @@ export class HeadlessChromeDriver extends EventEmitter {
             }));
             bk && bk.removeAllListeners()
             bk && await bk.goto('about:blank');
-
-            // const [bc, ...contexts] = this.browser.browserContexts();
-            // contexts.map(async c => { try { await c.close() } catch{ } })
+            const client = await bk.target().createCDPSession()
+            try { await client.send("Network.clearBrowserCache") } catch (e) { console.error(e) }
+            try { await client.send("Network.clearBrowserCookies") } catch (e) { console.error(e) }
+            const [bc, ...contexts] = this.browser.browserContexts();
+            contexts.map(async c => { try { await c.close() } catch{ } })
         } catch (e) {
             this.log("issue clearing browser.", e)
             await this.restart()
@@ -132,7 +134,7 @@ export class HeadlessChromeDriver extends EventEmitter {
     }
 
     error(...msg) {
-        
+
         console.error("=================================")
         console.error(`ERROR -> [bwsr:${this.id}]`);
         console.error("---------------------------------")
