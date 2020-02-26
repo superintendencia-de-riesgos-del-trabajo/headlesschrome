@@ -1,7 +1,7 @@
 import http from "http";
 import httpProxy from "http-proxy";
 import _ from "lodash"
-import { HeadlessChromeDriver } from "./HeadLessChromeDriver";
+import { HeadlessChromeDriver } from "./HeadlessChromeDriver";
 import { IdGenerator, timeout } from "./utils";
 import { ChildProcess } from "child_process";
 import treeKill from "tree-kill";
