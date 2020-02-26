@@ -1,29 +1,54 @@
-import puppeteer from "puppeteer"
-import treekill from "tree-kill"
+import puppeteer, { Target } from "puppeteer"
 import { ChildProcess } from "child_process";
 import { _ } from "lodash"
-import { IdGenerator } from "./utils";
-import { HeadLessChromeServer } from "./HeadlessChromeServer";
+import { EventEmitter } from 'events';
 
-export class HeadlessChromeDriver {
+export class HeadlessChromeDriver extends EventEmitter {
     id: number
+    target: Target
     startTime: Date
+    jobsCount: number
+    jobsLimit: number
     browser: puppeteer.Browser
     wsEndpoint: string
     process: ChildProcess
-    poolServer: HeadLessChromeServer
+    jobTimeout: NodeJS.Timeout
+    launching: boolean
 
-    constructor(poolServer: HeadLessChromeServer, idGen: IdGenerator) {
-        this.id = idGen.next()
-        this.poolServer = poolServer
+    constructor(id: number) {
+        super()
+        this.id = id
+        this.jobsCount = 0
+        this.jobsLimit = 30 + id
+        this.launching = false
     }
 
-    async launch() {
-        try {
+    public jobLimitExceeded() {
+        return this.jobsCount >= this.jobsLimit
+    }
 
+    public startJob() {
+        this.jobsCount++
+        this.log("job start")
+        this.jobTimeout = setTimeout(() => {
+             this.emit("job_timeout", this)
+             this.log("job timed out");
+        }, 30000)
+    }
+    private endJob() {
+        this.jobTimeout && clearTimeout(this.jobTimeout)
+        this.jobTimeout = null
+        this.log(`job end`)
+        this.emit("job_end", this)
+    }
+    public async launch() {
+        this.launching = true
+        this.jobsCount = 0
+        this.log("launching browser")
+        try {
             this.browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--enable-logging', '--v1=1', '--disable-setuid-sandbox', '--disable-gpu'],
-                dumpio: true,
+                dumpio: false,
                 handleSIGINT: true,
                 handleSIGTERM: true,
                 headless: true,
@@ -33,14 +58,7 @@ export class HeadlessChromeDriver {
             this.startTime = new Date()
             this.wsEndpoint = this.browser.wsEndpoint()
             this.process = this.browser.process()
-            this.process.setMaxListeners(20)
 
-            process.once("exit", async () => {
-                await this.kill()
-            })
-            this.process.once("exit", async () => {
-                await this.restart();
-            })
             this.browser.on("disconnected", () => {
                 this.log(`browser disconnected`)
                 this.restart()
@@ -49,67 +67,77 @@ export class HeadlessChromeDriver {
                 this.log(`${target.type()} changed`, target.url());
             });
             this.browser.on('targetcreated', async (target) => {
-                if (target)
-                    this.log(`${target.type()} created`, target.url())
+                if (!this.target && target.type() == "browser" && !this.launching ) {
+                    this.target = _.get(target,"_targetId")
+                }
+                this.log(`${target.type()} created`, target.url())
             });
             this.browser.on('targetdestroyed', async (target) => {
                 this.log(`${target.type()} closed`, target.url())
-                if (target.type() == "browser") {
-                    this.clear();
+                if (this.target==_.get(target,"_targetId")) {
+                    this.target = null
+                    this.endJob()
                 }
             });
         } catch (e) {
             this.error("issue launching browser", e)
         }
-
-        this.log(`starting browser: ${this.browser.process().pid} - ${this.wsEndpoint}`)
-        this.poolServer.addIdleBrowser(this)
+        this.log(`browser started: ${this.browser.process().pid} - ${this.wsEndpoint}`)
+        this.launching =false
+        this.emit("launch", this)
+        return this;
     }
 
-    async kill() {
+    public async kill() {
         this.log(`killing browser`)
         try {
             this.browser.removeAllListeners()
-            await this.browser.close().catch(() => { })
-            treekill(this.process.pid, "SIGKILL")
+            await this.browser.close()
+            this.process.kill();
         } catch (e) {
-            this.error("issue killing browser",e)
+            this.error("issue killing browser", e)
         }
     }
 
-    async clear() {
+    public async clear() {
         this.log(`clearing browser`);
         try {
             const [bk, ...pages] = await this.browser.pages();
-            await Promise.all(pages.map(async (page) => await page.close()));
-        } catch {
+            await Promise.all(pages.map(async (page) => {
+                try { await page.close() } catch{ }
+            }));
+            bk && bk.removeAllListeners()
+            bk && await bk.goto('about:blank');
+
+            // const [bc, ...contexts] = this.browser.browserContexts();
+            // contexts.map(async c => { try { await c.close() } catch{ } })
+        } catch (e) {
+            this.log("issue clearing browser.", e)
             await this.restart()
-        }
-        finally {
-            this.poolServer.addIdleBrowser(this)
         }
     }
 
-    async restart() {
+    public async restart() {
         try {
-
             this.log(`restarting browser`)
-
-            await this.kill();
-            await this.launch()
+            try { await this.kill() } catch{ };
+            return await this.launch()
         } catch (e) {
             this.error("issue restarting browser", e)
         }
     }
 
     log(...msg) {
-        console.log(`[bwsr:${this.id}]`, ...msg)
+        console.log(`[bwsr:${this.id}][${this.jobsCount}]`, ...msg)
     }
 
     error(...msg) {
-        console.log("=================================")
-        console.log(`ERROR -> [bwsr:${this.id}]`);
-        msg.map(console.log)
-        console.log("=================================")
+        
+        console.error("=================================")
+        console.error(`ERROR -> [bwsr:${this.id}]`);
+        console.error("---------------------------------")
+
+        msg.map(console.error)
+        console.error("=================================")
     }
 }

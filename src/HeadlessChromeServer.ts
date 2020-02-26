@@ -3,19 +3,27 @@ import httpProxy from "http-proxy";
 import _ from "lodash"
 import { HeadlessChromeDriver } from "./HeadLessChromeDriver";
 import { IdGenerator, timeout } from "./utils";
+import { ChildProcess } from "child_process";
+import treeKill from "tree-kill";
 
 export class HeadLessChromeServer {
-    poolSize = 5;
+    poolSize = 4;
     httpProxy: httpProxy;
     idleBrowsers: HeadlessChromeDriver[] = [];
     httpServer: http.Server;
+    runningProcesses: number[] = []
+    idGenerator: IdGenerator = new IdGenerator()
 
     constructor() {
         this.initializeProxy();
-        this.httpServer = this.createServer();
+        this.httpServer = this.createHttpServer();
+        process.on('uncaughtException', function (err) {
+            console.error(err.stack);
+        });
+        process.once("exit", this.killBrowsers.bind(this))
     }
 
-    initializeProxy() {
+    private initializeProxy() {
         this.httpProxy = httpProxy.createProxyServer({ ws: true });
         this.httpProxy.on('error', (err: Error, _req, res) => {
             res.writeHead && res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -23,44 +31,82 @@ export class HeadLessChromeServer {
         });
     }
 
-    async start() {
-        let idGen = new IdGenerator()
+    public async start(port = 3000) {
         for (let i = 0; i < this.poolSize; i++) {
-            let drv = new HeadlessChromeDriver(this,idGen)
-            await drv.launch();
+            await this.createInstance()
         }
+        await this.listen(port)
     }
-
-    addIdleBrowser(chromeDriver:HeadlessChromeDriver){
-        this.idleBrowsers.push(chromeDriver)
-    }
-
-    async getInstance(): Promise<HeadlessChromeDriver> {
-        let instance = this.idleBrowsers.pop()
-        while (!instance) {
-            await timeout(200)
-            instance = this.idleBrowsers.pop()
-        }
-        return instance;
-    }
-
-    async handleRequest(req: http.IncomingMessage, socket: any, head: any) {
-        let instance = await this.getInstance();
-        this.httpProxy.ws(req, socket, head, { target: instance.wsEndpoint })
-    }
-
-    createServer(): http.Server {
+    private createHttpServer(): http.Server {
         return http
             .createServer()
             .on('upgrade', async (req, socket, head) => {
                 return await this.handleRequest(req, socket, head);
             })
     }
-
-    listen(port: number) {
+    private async handleRequest(req: http.IncomingMessage, socket: any, head: any) {
+        let instance = await this.getInstance();
+        this.httpProxy.ws(req, socket, head, { target: instance.wsEndpoint })
+    }
+    private listen(port: number) {
         let res = this.httpServer.listen(port);
         console.log(`server listening on port: ${port}`)
         return res;
+    }
+
+    private async createInstance() {
+        let instance = new HeadlessChromeDriver(this.idGenerator.next())
+        this.setupInstance(instance)
+        await instance.launch();
+        this.addIdleBrowser(instance)
+    }
+    private async getInstance(): Promise<HeadlessChromeDriver> {
+        let instance = this.idleBrowsers.pop()
+        while (!instance) {
+            await timeout(200)
+            instance = this.idleBrowsers.pop()
+        }
+        instance.startJob()
+        return instance;
+    }
+
+    private setupInstance(instance: HeadlessChromeDriver) {
+        instance.on("job_timeout", this.onInstanceJobTimeout.bind(this))
+        instance.on("job_end", this.onInstanceEndJob.bind(this))
+        instance.on("launch", this.onInstanceLaunch.bind(this))
+    }
+    private async onInstanceLaunch(instance: HeadlessChromeDriver) {
+        this.addProcess(instance.process.pid)
+    }
+    private async onInstanceJobTimeout(instance: HeadlessChromeDriver) {
+        await this.recycleInstance(instance)
+    }
+    private async onInstanceEndJob(instance: HeadlessChromeDriver) {
+        await this.recycleInstance(instance)
+    }
+
+    private async recycleInstance(instance: HeadlessChromeDriver) {
+        if (instance.jobLimitExceeded()) {
+            instance.log("jobs limit exeeded")
+            const oldPID = instance.process.pid
+            instance = await instance.restart()
+            this.runningProcesses = this.runningProcesses.filter(pid => pid != oldPID)
+        }
+        else {
+            await instance.clear()
+        }
+        this.addIdleBrowser(instance)
+    }
+    private addProcess(pid: number) {
+        this.runningProcesses.push(pid);
+    }
+
+    private addIdleBrowser(chromeDriver: HeadlessChromeDriver) {
+        this.idleBrowsers.push(chromeDriver)
+    }
+
+    private killBrowsers() {
+        this.runningProcesses.map(pid => treeKill(pid))
     }
 
 }
