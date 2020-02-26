@@ -4,7 +4,8 @@
   "description": "",
   "main": "src/index.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "jest"
   },
   "author": "",
   "license": "ISC",
@@ -17,5 +18,10 @@
     "puppeteer": "^2.1.1",
     "tree-kill": "^1.2.2",
     "typescript": "^3.7.5"
+  },
+  "devDependencies": {
+    "@types/jest": "^25.1.3",
+    "jest": "^25.1.0",
+    "ts-jest": "^25.2.1"
   }
 }
