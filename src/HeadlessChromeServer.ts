@@ -3,7 +3,6 @@ import httpProxy from "http-proxy";
 import _ from "lodash"
 import { HeadlessChromeDriver } from "./HeadlessChromeDriver";
 import { IdGenerator, timeout } from "./utils";
-import { ChildProcess } from "child_process";
 import treeKill from "tree-kill";
 
 export class HeadLessChromeServer {
@@ -64,7 +63,6 @@ export class HeadLessChromeServer {
         let instance = new HeadlessChromeDriver(this.idGenerator.next())
         this.setupInstance(instance)
         await instance.launch();
-        this.addIdleBrowser(instance)
     }
     private async getInstance(): Promise<HeadlessChromeDriver> {
         let instance = this.idleBrowsers.pop()
@@ -82,6 +80,7 @@ export class HeadLessChromeServer {
         instance.on("launch", this.onInstanceLaunch.bind(this))
     }
     private async onInstanceLaunch(instance: HeadlessChromeDriver) {
+        this.addIdleBrowser(instance)
         this.addProcess(instance.process.pid)
     }
     private async onInstanceJobTimeout(instance: HeadlessChromeDriver) {

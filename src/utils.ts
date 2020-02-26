@@ -1,5 +1,3 @@
-import { Browser } from "puppeteer";
-
 export class IdGenerator {
     last: number = 0
     next(): number {
