@@ -3,17 +3,32 @@ import { ChildProcess } from "child_process";
 import { _ } from "lodash"
 import { EventEmitter } from 'events';
 
-export class HeadlessChromeDriver extends EventEmitter {
-    id: number
-    target: Target
-    startTime: Date
-    jobsCount: number
-    jobsLimit: number
-    browser: puppeteer.Browser
+export interface IHeadlessChromeDriver extends EventEmitter {
+    jobLimitExceeded(): boolean;
+    startJob();
+    launch(): Promise<IHeadlessChromeDriver>;
+    kill(): Promise<void>;
+    clear(): Promise<void>;
+    restart(): Promise<IHeadlessChromeDriver>;
+
+    log(...msg);
+    
+    id: number;
+    process: ChildProcess;
+    wsEndpoint: string
+}
+
+export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDriver {
+    readonly id: number
+    private target: Target
+    private startTime: Date
+    private jobsCount: number
+    private jobsLimit: number
+    private browser: puppeteer.Browser
     wsEndpoint: string
     process: ChildProcess
-    jobTimeout: NodeJS.Timeout
-    launching: boolean
+    private jobTimeout: NodeJS.Timeout
+    private launching: boolean
 
     constructor(id: number) {
         super()
@@ -133,7 +148,7 @@ export class HeadlessChromeDriver extends EventEmitter {
         console.log(`[bwsr:${this.id}][${this.jobsCount}]`, ...msg)
     }
 
-    error(...msg) {
+    private error(...msg) {
 
         console.error("=================================")
         console.error(`ERROR -> [bwsr:${this.id}]`);

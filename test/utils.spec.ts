@@ -1,8 +1,7 @@
 import { IdGenerator } from '../src/utils';
 
-const idGenerator = new IdGenerator();
-
-describe("Utils", () => {
+describe("Utils", () => {    
+    const idGenerator = new IdGenerator();
 
     it('id generado debe ser 1', () => {
         expect(idGenerator.next()).toBe(1);
