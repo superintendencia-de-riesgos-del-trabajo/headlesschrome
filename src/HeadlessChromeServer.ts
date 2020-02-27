@@ -50,6 +50,11 @@ export class HeadLessChromeServer {
         await this.listen(port);
     }
 
+    public async stop(){
+        await this.httpServer.close();
+        console.log("server stopped");
+    }
+
     private createHttpServer(): http.Server {
         return http
             .createServer()

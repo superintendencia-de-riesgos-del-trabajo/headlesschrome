@@ -7,16 +7,26 @@ import { IHeadlessChromeDriverFactory } from "../src/HeadlessChromeDriverFactory
 import { IHeadlessChromeDriver } from "../src/HeadlessChromeDriver";
 import { EventEmitter } from 'events';
 import { ChildProcess } from "child_process";
+import { IdGenerator } from "../src/utils";
+import WebSocket from "ws";
+import WS from "jest-websocket-mock";
 
-
-var idGlobal = 0;
+const idGenerator: IdGenerator = new IdGenerator();
+const server: WS = new WS("ws://localhost:30000/");
 
 class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDriver {
+    private server: WS;
+
     constructor() {
         super();
+
         var mockProcess = td.object<ChildProcess>();
-        this.id = ++idGlobal;
+        this.id = idGenerator.next();
         this.process = mockProcess;
+
+        this.wsEndpoint = "ws://localhost:30000/";
+
+        this.server = server;
     }
 
     jobLimitExceeded(): boolean {
@@ -30,6 +40,7 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         this.emit("launch", this);
         return this;
     }
+
     async kill(): Promise<void> {
 
     }
@@ -95,10 +106,25 @@ describe("HeadlessChromeServer", () => {
         expect(process.getMaxListeners()).toBe(headlessChromeServer.poolSize + 3);
     });
 
-    it("", async () => {
+    it("idleBrowsers should be filled accordingly", async () => {
         const headlessChromeServer = new HeadLessChromeServer(factoryMock);
-        try { await headlessChromeServer.start(); } catch (e) { console.error(e); }
-
+        await headlessChromeServer.start();
         expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize);
+
+        await headlessChromeServer.stop();
+    });
+
+    it("", (done) => {
+        const headlessChromeServer = new HeadLessChromeServer(factoryMock)
+        headlessChromeServer.start().then(() => {
+            const client = new WebSocket("http://127.0.0.1:3000/", {});
+            server.connected.then(() => {
+                client.on("open", () => {
+                    expect(headlessChromeServer.idleBrowsers).toBe(headlessChromeServer.poolSize - 1);
+                    done();
+                    headlessChromeServer.stop();
+                });
+            });
+        });
     });
 });
