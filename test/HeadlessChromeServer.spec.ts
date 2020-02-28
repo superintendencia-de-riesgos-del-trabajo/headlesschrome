@@ -1,6 +1,4 @@
 import { HeadLessChromeServer } from "../src/HeadlessChromeServer"
-import httpProxy from "http-proxy";
-import http from "http";
 import _ from "lodash";
 import td from "testdouble";
 import { IHeadlessChromeDriverFactory } from "../src/HeadlessChromeDriverFactory";
@@ -8,15 +6,14 @@ import { IHeadlessChromeDriver } from "../src/HeadlessChromeDriver";
 import { EventEmitter } from 'events';
 import { ChildProcess } from "child_process";
 import { IdGenerator } from "../src/utils";
-import WebSocket from "ws";
-import WS from "jest-websocket-mock";
+import { IHttpProxyFactory } from "../src/ProxyFactory";
+import { IHttpProxy } from "../src/HttpProxy";
+import { IHttpServerFactory } from "../src/HttpServerFactory";
+import { IHttpServer } from "../src/HttpServer";
 
 const idGenerator: IdGenerator = new IdGenerator();
-const server: WS = new WS("ws://localhost:30000/");
 
 class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDriver {
-    private server: WS;
-
     constructor() {
         super();
 
@@ -25,8 +22,6 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         this.process = mockProcess;
 
         this.wsEndpoint = "ws://localhost:30000/";
-
-        this.server = server;
     }
 
     jobLimitExceeded(): boolean {
@@ -61,14 +56,43 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
     id: number;
 }
 
+class MockHttpServer extends EventEmitter implements IHttpServer {
+    onUpgrade(listener: (...args: any[]) => void): IHttpServer {
+        this.on("upgrade", listener);
+        return this;
+    }
+
+    start() {
+
+    }
+
+    stop() {
+
+    }
+}
+
 describe("HeadlessChromeServer", () => {
-    var factoryMock: IHeadlessChromeDriverFactory = undefined;
+    let factoryDriverMock: IHeadlessChromeDriverFactory = undefined;
+    let factoryProxyMock: IHttpProxyFactory = undefined;
+    let factoryServerMock: IHttpServerFactory = undefined;
 
-    beforeAll(() => {
-        factoryMock = td.object<IHeadlessChromeDriverFactory>();
+    let httpServerMock = new MockHttpServer();
+
+    let drivers: IHeadlessChromeDriver[];
+
+    beforeEach(() => {
+        factoryDriverMock = td.object<IHeadlessChromeDriverFactory>();
+        factoryProxyMock = td.object<IHttpProxyFactory>();
+        factoryServerMock = td.object<IHttpServerFactory>();
+
         let driverMock = () => { return new MockHeadlessChromeDriver() };
+        let httpProxyMock = td.object<IHttpProxy>();
 
-        td.when(factoryMock.createInstance()).thenReturn<IHeadlessChromeDriver>(driverMock(), driverMock(), driverMock(), driverMock());
+        drivers = Array.from({ length: 4 }, driverMock);
+
+        td.when(factoryProxyMock.createInstance()).thenReturn<IHttpProxy>(httpProxyMock);
+        td.when(factoryServerMock.createInstance(3000)).thenReturn<IHttpServer>(httpServerMock);
+        td.when(factoryDriverMock.createInstance()).thenReturn<IHeadlessChromeDriver>(...drivers);
     });
 
     beforeEach(() => {
@@ -76,55 +100,43 @@ describe("HeadlessChromeServer", () => {
     });
 
     it("Pool size should be the default value when no enviroment variable is set", () => {
-        const headlessChromeServer = new HeadLessChromeServer(factoryMock);
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
         expect(headlessChromeServer.poolSize).toBe(headlessChromeServer.defaultPoolSize);
     });
 
     it("Pool size should be set to enviroment variable value", () => {
-        const poolSize = "20";
+        const poolSize = "10";
         process.env.POOL_SIZE = poolSize;
-        const headlessChromeServer = new HeadLessChromeServer(factoryMock);
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
         expect(headlessChromeServer.poolSize).toBe(parseInt(poolSize));
     });
-
-    it("HttpServer should be created", () => {
-        const headlessChromeServer = new HeadLessChromeServer(factoryMock);
-
-        expect(headlessChromeServer.httpServer instanceof http.Server).toBeTruthy();
-    });
-
     it("HttpProxy should be created and ready for websockets", () => {
-        const headlessChromeServer = new HeadLessChromeServer(factoryMock);
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
 
-        expect(headlessChromeServer.httpProxy instanceof httpProxy).toBeTruthy();
         expect(_.get(headlessChromeServer.httpProxy, "options").ws).toBeTruthy();
     });
 
     it("process.maxListeners should be greater than poolsize", () => {
-        const headlessChromeServer = new HeadLessChromeServer(factoryMock);
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
 
         expect(process.getMaxListeners()).toBe(headlessChromeServer.poolSize + 3);
     });
 
     it("idleBrowsers should be filled accordingly", async () => {
-        const headlessChromeServer = new HeadLessChromeServer(factoryMock);
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
         await headlessChromeServer.start();
         expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize);
 
         await headlessChromeServer.stop();
     });
 
-    it("", (done) => {
-        const headlessChromeServer = new HeadLessChromeServer(factoryMock)
+    it("idleBrowsers should decrease with each connection and add", (done) => {
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock)
         headlessChromeServer.start().then(() => {
-            const client = new WebSocket("http://127.0.0.1:3000/", {});
-            server.connected.then(() => {
-                client.on("open", () => {
-                    expect(headlessChromeServer.idleBrowsers).toBe(headlessChromeServer.poolSize - 1);
-                    done();
-                    headlessChromeServer.stop();
-                });
-            });
+            httpServerMock.emit("upgrade");
+            expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize - 1);
+            done();
+            headlessChromeServer.stop();
         });
     });
 });

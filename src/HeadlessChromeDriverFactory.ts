@@ -1,11 +1,11 @@
 import { HeadlessChromeDriver, IHeadlessChromeDriver } from "./HeadlessChromeDriver";
 import { IdGenerator } from "./utils";
 
-export interface IHeadlessChromeDriverFactory{
-    createInstance() : IHeadlessChromeDriver;
+export interface IHeadlessChromeDriverFactory {
+    createInstance(): IHeadlessChromeDriver;
 }
 
-export class HeadlessChromeDriverFactory implements IHeadlessChromeDriverFactory{
+export class HeadlessChromeDriverFactory implements IHeadlessChromeDriverFactory {
 
     private readonly idGenerator: IdGenerator;
 
@@ -13,7 +13,7 @@ export class HeadlessChromeDriverFactory implements IHeadlessChromeDriverFactory
         this.idGenerator = new IdGenerator();
     }
 
-    public createInstance() : IHeadlessChromeDriver {
+    public createInstance(): IHeadlessChromeDriver {
         return new HeadlessChromeDriver(this.idGenerator.next());
     }
 }

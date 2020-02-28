@@ -1,31 +1,34 @@
 import http from "http";
-import httpProxy from "http-proxy";
 import _ from "lodash"
-import { HeadlessChromeDriver } from "./HeadlessChromeDriver";
 import { timeout } from "./utils";
 import treeKill from "tree-kill";
 import { IHeadlessChromeDriverFactory } from "./HeadlessChromeDriverFactory";
 import { IHeadlessChromeDriver } from "./HeadlessChromeDriver";
+import { IHttpProxy } from "./HttpProxy";
+import { IHttpProxyFactory } from "./ProxyFactory";
+import { IHttpServer } from "./HttpServer";
+import { IHttpServerFactory } from "./HttpServerFactory";
 
 export class HeadLessChromeServer {
     readonly defaultPoolSize = 4;
     readonly poolSize: number;
-    httpProxy: httpProxy;
+    readonly httpProxy: IHttpProxy;
+
     idleBrowsers: IHeadlessChromeDriver[] = [];
-    httpServer: http.Server;
+    private httpServer: IHttpServer;
     runningProcesses: number[] = []
     readonly headlessChromeDriverFactory: IHeadlessChromeDriverFactory;
 
-    constructor(chromeDriverFactory: IHeadlessChromeDriverFactory) {
+    constructor(chromeDriverFactory: IHeadlessChromeDriverFactory, proxyFactory: IHttpProxyFactory, httpServerFactory: IHttpServerFactory) {
         this.headlessChromeDriverFactory = chromeDriverFactory;
         this.poolSize = parseInt(process.env.POOL_SIZE) || this.defaultPoolSize;
-        this.initialize()
+        this.httpProxy = proxyFactory.createInstance();
+        this.httpServer = httpServerFactory.createInstance(3000).onUpgrade(this.handleRequest.bind(this));
+
+        this.initialize();
     }
 
     private initialize() {
-        this.initializeProxy();
-        this.httpServer = this.createHttpServer();
-
         process.on('uncaughtException', function (err) {
             console.error(err.stack);
         });
@@ -34,44 +37,21 @@ export class HeadLessChromeServer {
         process.once("exit", this.killBrowsers.bind(this));
     }
 
-    private initializeProxy() {
-        this.httpProxy = httpProxy.createProxyServer({ ws: true });
-        this.httpProxy.on('error', (err: Error, _req, res) => {
-            res.writeHead && res.writeHead(500, { 'Content-Type': 'text/plain' });
-            res.end(`Issue communicating with Chrome`);
-        });
-    }
-
     public async start(port = 3000) {
         for (let i = 0; i < this.poolSize; i++) {
             await this.createInstance();
         }
 
-        await this.listen(port);
+        this.httpServer.start();
     }
 
-    public async stop(){
-        await this.httpServer.close();
-        console.log("server stopped");
-    }
-
-    private createHttpServer(): http.Server {
-        return http
-            .createServer()
-            .on('upgrade', async (req, socket, head) => {
-                return await this.handleRequest(req, socket, head);
-            });
+    public async stop() {
+        this.httpServer.stop();
     }
 
     private async handleRequest(req: http.IncomingMessage, socket: any, head: any) {
         let instance = await this.getInstance();
-        this.httpProxy.ws(req, socket, head, { target: instance.wsEndpoint })
-    }
-
-    private listen(port: number) {
-        let res = this.httpServer.listen(port);
-        console.log(`server listening on port: ${port}`)
-        return res;
+        this.httpProxy.sendToInstance(instance, req, socket, head);
     }
 
     private async createInstance() {

@@ -12,7 +12,7 @@ export interface IHeadlessChromeDriver extends EventEmitter {
     restart(): Promise<IHeadlessChromeDriver>;
 
     log(...msg);
-    
+
     id: number;
     process: ChildProcess;
     wsEndpoint: string
@@ -50,12 +50,14 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
             this.log("job timed out");
         }, 30000)
     }
+
     private endJob() {
         this.jobTimeout && clearTimeout(this.jobTimeout)
         this.jobTimeout = null
         this.log(`job end`)
         this.emit("job_end", this)
     }
+
     public async launch() {
         this.launching = true
         this.jobsCount = 0
