@@ -37,7 +37,7 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
     }
 
     async kill(): Promise<void> {
-
+        this.removeAllListeners();
     }
 
     async clear(): Promise<void> {
@@ -67,7 +67,7 @@ class MockHttpServer extends EventEmitter implements IHttpServer {
     }
 
     stop() {
-
+        this.removeAllListeners();
     }
 }
 
@@ -79,6 +79,10 @@ describe("HeadlessChromeServer", () => {
     let httpServerMock = new MockHttpServer();
 
     let drivers: IHeadlessChromeDriver[];
+
+    afterAll(() => {
+        td.reset();
+    });
 
     beforeEach(() => {
         factoryDriverMock = td.object<IHeadlessChromeDriverFactory>();
@@ -130,13 +134,13 @@ describe("HeadlessChromeServer", () => {
         await headlessChromeServer.stop();
     });
 
-    it("idleBrowsers should decrease with each connection and add", (done) => {
-        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock)
-        headlessChromeServer.start().then(() => {
-            httpServerMock.emit("upgrade");
-            expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize - 1);
-            done();
-            headlessChromeServer.stop();
-        });
+    it("idleBrowsers should decrease with each connection and add", async () => {
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
+        await headlessChromeServer.start();
+
+        httpServerMock.emit("upgrade");
+
+        expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize - 1);
+        await headlessChromeServer.stop();
     });
 });
