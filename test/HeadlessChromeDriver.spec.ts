@@ -21,8 +21,8 @@ describe("HeadlessChromeDriver", () => {
 
     it("should throw error when starting a new job before the previous has finished",()=>{
         const driver = new HeadlessChromeDriverFactory().createInstance();
-        driver.startJob(1);        
-
+        driver.startJob(1);                
         expect(()=>driver.startJob(2)).toThrowWithMessage(Error,"cannot start a new job until the previous has finished");
+        driver.endJob();
     });
 })
