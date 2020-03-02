@@ -1,11 +1,11 @@
 import { IHttpServer, HttpServer } from "./HttpServer";
 
 export interface IHttpServerFactory {
-    createInstance(port: number): IHttpServer;
+    createInstance(): IHttpServer;
 }
 
 export class HttpServerFactory implements IHttpServerFactory {
-    public createInstance(port: number): IHttpServer {
-        return new HttpServer(port);
+    public createInstance(): IHttpServer {
+        return new HttpServer();
     }
 }

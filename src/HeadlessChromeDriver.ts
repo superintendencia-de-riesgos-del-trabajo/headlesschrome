@@ -1,17 +1,17 @@
 import puppeteer, { Target } from "puppeteer"
 import { ChildProcess } from "child_process";
-import { _ } from "lodash"
+import _ from "lodash"
 import { EventEmitter } from 'events';
+import { logger } from "./Logger"
 
 export interface IHeadlessChromeDriver extends EventEmitter {
     jobLimitExceeded(): boolean;
-    startJob();
+    startJob(jobId:number);
+    endJob();
     launch(): Promise<IHeadlessChromeDriver>;
     kill(): Promise<void>;
     clear(): Promise<void>;
     restart(): Promise<IHeadlessChromeDriver>;
-
-    log(...msg);
 
     id: number;
     process: ChildProcess;
@@ -30,6 +30,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     private jobTimeout: NodeJS.Timeout
     private launching: boolean
 
+
     constructor(id: number) {
         super()
         this.id = id
@@ -42,34 +43,52 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         return this.jobsCount >= this.jobsLimit
     }
 
-    public startJob() {
+    public startJob(jobId:number) {
+        if (this.jobTimeout != null) {
+            logger.error("cannot start a new job until the previous has finished");
+            throw new Error("cannot start a new job until the previous has finished");
+        }
+
         this.jobsCount++
-        this.log("job start")
+        logger.job_start(this.currentJob())
         this.jobTimeout = setTimeout(() => {
             this.emit("job_timeout", this)
-            this.log("job timed out");
+            logger.job_timeout(this.toString());
         }, 30000)
     }
 
-    private endJob() {
+    public endJob() {
         this.jobTimeout && clearTimeout(this.jobTimeout)
         this.jobTimeout = null
-        this.log(`job end`)
+        logger.job_end(this.currentJob())
         this.emit("job_end", this)
     }
 
     public async launch() {
         this.launching = true
         this.jobsCount = 0
-        this.log("launching browser")
         try {
             this.browser = await puppeteer.launch({
-                args: ['--no-sandbox', '--enable-logging', '--v1=1', '--disable-setuid-sandbox', '--disable-gpu'],
+                args: ['--v1=1', '--disable-gpu',
+                    '--disable-canvas-aa', // Disable antialiasing on 2d canvas
+                    '--disable-2d-canvas-clip-aa', // Disable antialiasing on 2d canvas clips
+                    '--disable-gl-drawing-for-tests', // BEST OPTION EVER! Disables GL drawing operations which produce pixel output. With this the GL output will not be correct but tests will run faster.
+                    '--disable-dev-shm-usage', // ???
+                    '--no-zygote', // wtf does that mean ?
+                    '--use-gl=swiftshader', // better cpu usage with --use-gl=desktop rather than --use-gl=swiftshader, still needs more testing.
+                    '--enable-webgl',
+                    '--hide-scrollbars',
+                    '--mute-audio',
+                    '--no-first-run',
+                    '--disable-infobars',
+                    '--disable-breakpad',
+                    '--window-size=1280,1024', // see defaultViewport
+                    '--no-sandbox', // meh but better resource comsuption
+                    '--disable-setuid-sandbox'],
                 dumpio: false,
                 handleSIGINT: true,
                 handleSIGTERM: true,
                 headless: true,
-                ignoreDefaultArgs: ['--disable-extensions'],
                 ignoreHTTPSErrors: true
             });
             this.startTime = new Date()
@@ -77,86 +96,78 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
             this.process = this.browser.process()
 
             this.browser.on("disconnected", () => {
-                this.log(`browser disconnected`)
                 this.restart()
             });
             this.browser.on("targetchanged", (target) => {
-                this.log(`${target.type()} changed`, target.url());
+                logger.debug(`${this.currentJob()} ${target.type()} changed`, target.url());
             });
             this.browser.on('targetcreated', async (target) => {
                 if (!this.target && target.type() == "browser" && !this.launching) {
                     this.target = target
                 }
-                this.log(`${target.type()} created`, target.url())
+                logger.debug(`${this.currentJob()} ${target.type()} created`, target.url())
             });
             this.browser.on('targetdestroyed', async (target) => {
-                this.log(`${target.type()} closed`, target.url())
+                logger.debug(`${target.type()} closed`, target.url())
                 if (this.target == target) {
                     this.target = null
                     this.endJob()
                 }
             });
         } catch (e) {
-            this.error("issue launching browser", e)
+            logger.error("issue launching browser", e)
         }
-        this.log(`browser started: ${this.browser.process().pid} - ${this.wsEndpoint}`)
+        logger.chrome_start(`[ID: ${this.id}] [PID: ${this.browser.process().pid}] [URL: ${this.wsEndpoint}]`)
         this.launching = false
         this.emit("launch", this)
         return this;
     }
 
     public async kill() {
-        this.log(`killing browser`)
         try {
             this.browser.removeAllListeners()
             await this.browser.close()
             this.process.kill();
         } catch (e) {
-            this.error("issue killing browser", e)
+            logger.error("issue killing browser", e)
         }
     }
 
     public async clear() {
-        this.log(`clearing browser`);
+        logger.chrome_clear(this.currentJob());
         try {
-            const [bk, ...pages] = await this.browser.pages();
+            const pages = await this.browser.pages()
+            const blankPage = await this.browser.newPage()
             await Promise.all(pages.map(async (page) => {
-                try { await page.close() } catch{ }
+                try { if (page !== blankPage) await page.close() } catch{ }
             }));
-            bk && bk.removeAllListeners()
-            bk && await bk.goto('about:blank');
-            const client = await bk.target().createCDPSession()
+            const client = await blankPage.target().createCDPSession()
             try { await client.send("Network.clearBrowserCache") } catch (e) { console.error(e) }
             try { await client.send("Network.clearBrowserCookies") } catch (e) { console.error(e) }
             const [bc, ...contexts] = this.browser.browserContexts();
             contexts.map(async c => { try { await c.close() } catch{ } })
         } catch (e) {
-            this.log("issue clearing browser.", e)
+            logger.error("issue clearing browser.", e)
             await this.restart()
         }
     }
 
     public async restart() {
         try {
-            this.log(`restarting browser`)
+            logger.chrome_restart(this.currentJob())
             try { await this.kill() } catch{ };
             return await this.launch()
+            
         } catch (e) {
-            this.error("issue restarting browser", e)
+            logger.error("issue restarting browser", e)
         }
     }
 
-    log(...msg) {
-        console.log(`[bwsr:${this.id}][${this.jobsCount}]`, ...msg)
+    currentID(){
+        return `[ID: ${this.id}]`
+    }
+    currentJob() {
+        return `[ID: ${this.id}]` + (this.jobsCount ? ` [job:${this.jobsCount}]` : '')
     }
 
-    private error(...msg) {
-
-        console.error("=================================")
-        console.error(`ERROR -> [bwsr:${this.id}]`);
-        console.error("---------------------------------")
-
-        msg.map(console.error)
-        console.error("=================================")
-    }
 }

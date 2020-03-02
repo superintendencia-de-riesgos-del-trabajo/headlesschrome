@@ -10,6 +10,7 @@ import { IHttpProxyFactory } from "../src/ProxyFactory";
 import { IHttpProxy } from "../src/HttpProxy";
 import { IHttpServerFactory } from "../src/HttpServerFactory";
 import { IHttpServer } from "../src/HttpServer";
+import { logger } from "../src/Logger";
 
 const idGenerator: IdGenerator = new IdGenerator();
 
@@ -30,6 +31,10 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
     }
 
     startJob() {
+    }
+
+    endJob() {
+
     }
 
     async launch(): Promise<IHeadlessChromeDriver> {
@@ -88,6 +93,7 @@ describe("HeadlessChromeServer", () => {
 
     afterAll(() => {
         td.reset();
+        process.removeAllListeners();
     });
 
     beforeEach(() => {
@@ -101,12 +107,14 @@ describe("HeadlessChromeServer", () => {
         drivers = Array.from({ length: 4 }, driverMock);
 
         td.when(factoryProxyMock.createInstance()).thenReturn<IHttpProxy>(httpProxyMock);
-        td.when(factoryServerMock.createInstance(3000)).thenReturn<IHttpServer>(httpServerMock);
+        td.when(factoryServerMock.createInstance()).thenReturn<IHttpServer>(httpServerMock);
         td.when(factoryDriverMock.createInstance()).thenReturn<IHeadlessChromeDriver>(...drivers);
+    
+        delete process.env.POOL_SIZE;
     });
 
-    beforeEach(() => {
-        delete process.env.POOL_SIZE;
+    beforeAll(()=>{
+        logger.disable();
     });
 
     it("Pool size should be the default value when no enviroment variable is set", () => {
@@ -249,16 +257,16 @@ describe("HeadlessChromeServer", () => {
         httpServerMock.emit("upgrade");
         httpServerMock.emit("upgrade");
         httpServerMock.emit("upgrade");
-        httpServerMock.emit("upgrade");        
-        
+        httpServerMock.emit("upgrade");
+
         expect(headlessChromeServer.idleBrowsers.length).toBe(0);
-        
+
         driver.emit("job_end", driver);
         await timeout(1);
         expect(headlessChromeServer.idleBrowsers.length).toBe(1);
-        
-        while(headlessChromeServer.idleBrowsers.length == 1) await timeout(100);
-        
+
+        while (headlessChromeServer.idleBrowsers.length == 1) await timeout(100);
+
         expect(headlessChromeServer.idleBrowsers.length).toBe(0);
 
         await headlessChromeServer.stop();

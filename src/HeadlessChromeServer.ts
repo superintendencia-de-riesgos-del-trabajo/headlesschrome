@@ -1,6 +1,6 @@
 import http from "http";
 import _ from "lodash"
-import { timeout } from "./utils";
+import { timeout, IdGenerator } from "./utils";
 import treeKill from "tree-kill";
 import { IHeadlessChromeDriverFactory } from "./HeadlessChromeDriverFactory";
 import { IHeadlessChromeDriver } from "./HeadlessChromeDriver";
@@ -8,11 +8,13 @@ import { IHttpProxy } from "./HttpProxy";
 import { IHttpProxyFactory } from "./ProxyFactory";
 import { IHttpServer } from "./HttpServer";
 import { IHttpServerFactory } from "./HttpServerFactory";
+import { Logger, logger } from "./Logger";
 
 export class HeadLessChromeServer {
     readonly defaultPoolSize = 4;
     readonly poolSize: number;
     readonly httpProxy: IHttpProxy;
+    readonly jobIdGenerator : IdGenerator
 
     idleBrowsers: IHeadlessChromeDriver[] = [];
     private httpServer: IHttpServer;
@@ -23,8 +25,8 @@ export class HeadLessChromeServer {
         this.headlessChromeDriverFactory = chromeDriverFactory;
         this.poolSize = parseInt(process.env.POOL_SIZE) || this.defaultPoolSize;
         this.httpProxy = proxyFactory.createInstance();
-        this.httpServer = httpServerFactory.createInstance(3000).onUpgrade(this.handleRequest.bind(this));
-
+        this.httpServer = httpServerFactory.createInstance().onUpgrade(this.handleRequest.bind(this));
+        this.jobIdGenerator = new IdGenerator();
         this.initialize();
     }
 
@@ -41,8 +43,7 @@ export class HeadLessChromeServer {
         for (let i = 0; i < this.poolSize; i++) {
             await this.createInstance();
         }
-
-        this.httpServer.start();
+        this.httpServer.start(port);
     }
 
     public async stop() {
@@ -68,7 +69,7 @@ export class HeadLessChromeServer {
             instance = this.idleBrowsers.pop();
         }
 
-        instance.startJob();
+        instance.startJob(this.jobIdGenerator.next());
         return instance;
     }
 
@@ -93,7 +94,7 @@ export class HeadLessChromeServer {
 
     private async recycleInstance(instance: IHeadlessChromeDriver) {
         if (instance.jobLimitExceeded()) {
-            instance.log("jobs limit exeeded");
+            logger.warn("job limit exceeded")
             const oldPID = instance.process.pid;
             instance = await instance.restart();
             this.runningProcesses = this.runningProcesses.filter(pid => pid != oldPID);
@@ -116,6 +117,6 @@ export class HeadLessChromeServer {
     }
 
     private killBrowsers() {
-        this.runningProcesses.map(pid => treeKill(pid));
+        this.runningProcesses.map(pid => { try { treeKill(pid) } catch{ } });
     }
 }
