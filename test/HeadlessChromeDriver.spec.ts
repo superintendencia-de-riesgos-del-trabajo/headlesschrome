@@ -8,7 +8,7 @@ describe("HeadlessChromeDriver", () => {
 
         expect(driver.jobLimitExceeded()).toBeFalse()
         for (let i = 0; i < 30 + driver.id; i++) {
-            driver.startJob()
+            driver.startJob(i)
         }
         expect(driver.jobLimitExceeded()).toBeTrue()
     })
