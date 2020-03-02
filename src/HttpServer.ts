@@ -2,17 +2,14 @@ import http from "http";
 
 export interface IHttpServer {
     stop();
-    start();
+    start(port:number);
     onUpgrade(listener: (...args: any[]) => void): IHttpServer;
 }
 
 export class HttpServer implements IHttpServer {
     httpServer: http.Server;
-    private port: number;
 
-    constructor(port: number) {
-        this.port = port;
-
+    constructor() {
         this.httpServer = http.createServer();
     }
 
@@ -22,9 +19,9 @@ export class HttpServer implements IHttpServer {
         return this;
     }
 
-    start(): IHttpServer {
-        this.httpServer.listen(this.port);
-        console.log(`server listening on port: ${this.port}`)
+    start(port:number): IHttpServer {
+        this.httpServer.listen(port);
+        console.log(`server listening on port: ${port}`)
         return this;
     }
 

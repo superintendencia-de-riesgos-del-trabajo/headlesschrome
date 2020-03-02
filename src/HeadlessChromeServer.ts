@@ -1,6 +1,6 @@
 import http from "http";
 import _ from "lodash"
-import { timeout } from "./utils";
+import { timeout, IdGenerator } from "./utils";
 import treeKill from "tree-kill";
 import { IHeadlessChromeDriverFactory } from "./HeadlessChromeDriverFactory";
 import { IHeadlessChromeDriver } from "./HeadlessChromeDriver";
@@ -14,6 +14,7 @@ export class HeadLessChromeServer {
     readonly defaultPoolSize = 4;
     readonly poolSize: number;
     readonly httpProxy: IHttpProxy;
+    readonly jobIdGenerator : IdGenerator
 
     idleBrowsers: IHeadlessChromeDriver[] = [];
     private httpServer: IHttpServer;
@@ -24,8 +25,8 @@ export class HeadLessChromeServer {
         this.headlessChromeDriverFactory = chromeDriverFactory;
         this.poolSize = parseInt(process.env.POOL_SIZE) || this.defaultPoolSize;
         this.httpProxy = proxyFactory.createInstance();
-        this.httpServer = httpServerFactory.createInstance(3000).onUpgrade(this.handleRequest.bind(this));
-
+        this.httpServer = httpServerFactory.createInstance().onUpgrade(this.handleRequest.bind(this));
+        this.jobIdGenerator = new IdGenerator();
         this.initialize();
     }
 
@@ -42,7 +43,7 @@ export class HeadLessChromeServer {
         for (let i = 0; i < this.poolSize; i++) {
             await this.createInstance();
         }
-        this.httpServer.start();
+        this.httpServer.start(port);
     }
 
     public async stop() {
@@ -68,7 +69,7 @@ export class HeadLessChromeServer {
             instance = this.idleBrowsers.pop();
         }
 
-        instance.startJob();
+        instance.startJob(this.jobIdGenerator.next());
         return instance;
     }
 

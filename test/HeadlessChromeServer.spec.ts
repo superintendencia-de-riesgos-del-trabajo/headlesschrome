@@ -101,7 +101,7 @@ describe("HeadlessChromeServer", () => {
         drivers = Array.from({ length: 4 }, driverMock);
 
         td.when(factoryProxyMock.createInstance()).thenReturn<IHttpProxy>(httpProxyMock);
-        td.when(factoryServerMock.createInstance(3000)).thenReturn<IHttpServer>(httpServerMock);
+        td.when(factoryServerMock.createInstance()).thenReturn<IHttpServer>(httpServerMock);
         td.when(factoryDriverMock.createInstance()).thenReturn<IHeadlessChromeDriver>(...drivers);
     });
 
