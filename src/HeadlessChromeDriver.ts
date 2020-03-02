@@ -7,6 +7,7 @@ import { logger } from "./Logger"
 export interface IHeadlessChromeDriver extends EventEmitter {
     jobLimitExceeded(): boolean;
     startJob(jobId:number);
+    endJob();
     launch(): Promise<IHeadlessChromeDriver>;
     kill(): Promise<void>;
     clear(): Promise<void>;
@@ -43,6 +44,11 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public startJob(jobId:number) {
+        if (this.jobTimeout != null) {
+            logger.error("cannot start a new job until the previous has finished");
+            throw new Error("cannot start a new job until the previous has finished");
+        }
+
         this.jobsCount++
         logger.job_start(this.currentJob())
         this.jobTimeout = setTimeout(() => {
@@ -51,7 +57,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         }, 30000)
     }
 
-    private endJob() {
+    public endJob() {
         this.jobTimeout && clearTimeout(this.jobTimeout)
         this.jobTimeout = null
         logger.job_end(this.currentJob())

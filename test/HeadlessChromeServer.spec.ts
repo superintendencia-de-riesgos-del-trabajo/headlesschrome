@@ -32,6 +32,10 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
     startJob() {
     }
 
+    endJob() {
+
+    }
+
     async launch(): Promise<IHeadlessChromeDriver> {
         this.emit("launch", this);
         return this;
@@ -250,16 +254,16 @@ describe("HeadlessChromeServer", () => {
         httpServerMock.emit("upgrade");
         httpServerMock.emit("upgrade");
         httpServerMock.emit("upgrade");
-        httpServerMock.emit("upgrade");        
-        
+        httpServerMock.emit("upgrade");
+
         expect(headlessChromeServer.idleBrowsers.length).toBe(0);
-        
+
         driver.emit("job_end", driver);
         await timeout(1);
         expect(headlessChromeServer.idleBrowsers.length).toBe(1);
-        
-        while(headlessChromeServer.idleBrowsers.length == 1) await timeout(100);
-        
+
+        while (headlessChromeServer.idleBrowsers.length == 1) await timeout(100);
+
         expect(headlessChromeServer.idleBrowsers.length).toBe(0);
 
         await headlessChromeServer.stop();
