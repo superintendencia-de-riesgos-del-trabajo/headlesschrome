@@ -1,4 +1,4 @@
-import { Signale, SignaleOptions, } from "signale";
+import { Signale } from "signale";
 import figures from "figures"
 
 const options: any = {
@@ -56,9 +56,9 @@ export class Logger extends Signale {
     constructor() {
         super(options)
 
-        super.config({ displayTimestamp: true, logLevel: "info" });
+        this.config({ displayTimestamp: true, logLevel: "info" } as any);
     }
 }
 
-export const logger: CustomLogger & Signale = new Logger();
+export const logger: CustomLogger & Signale = new Logger() as any;
 
