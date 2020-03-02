@@ -20,7 +20,7 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         this.id = idGenerator.next();
         this.process = td.object<ChildProcess>();
 
-        td.replace(this.process, "pid", () => this.id);        
+        td.replace(this.process, "pid", () => this.id);
 
         this.wsEndpoint = "ws://localhost:30000/";
     }
@@ -48,7 +48,7 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
     async restart(): Promise<IHeadlessChromeDriver> {
         this.process = td.object<ChildProcess>();
 
-        td.replace(this.process, "pid", () => this.id + 1000);  
+        td.replace(this.process, "pid", () => this.id + 1000);
 
         return this;
     }
@@ -88,6 +88,7 @@ describe("HeadlessChromeServer", () => {
 
     afterAll(() => {
         td.reset();
+        process.removeAllListeners();
     });
 
     beforeEach(() => {
@@ -180,7 +181,7 @@ describe("HeadlessChromeServer", () => {
         td.replace(driver, "jobLimitExceeded", () => true);
 
         httpServerMock.emit("upgrade");
-    
+
         expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeTruthy();
 
         driver.emit("job_end", driver);
@@ -211,7 +212,7 @@ describe("HeadlessChromeServer", () => {
 
         expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize);
         expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeTruthy();
-        
+
         await headlessChromeServer.stop();
     });
 
@@ -226,7 +227,7 @@ describe("HeadlessChromeServer", () => {
         td.replace(driver, "jobLimitExceeded", () => true);
 
         httpServerMock.emit("upgrade");
-    
+
         expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeTruthy();
 
         driver.emit("job_timeout", driver);
@@ -235,6 +236,31 @@ describe("HeadlessChromeServer", () => {
 
         expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeFalsy();
         expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize);
+
+        await headlessChromeServer.stop();
+    });
+
+    it("should empty the queue and keep waiting when too man jobs are recived", async () => {
+        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
+        await headlessChromeServer.start();
+
+        let driver = headlessChromeServer.idleBrowsers[0];
+
+        httpServerMock.emit("upgrade");
+        httpServerMock.emit("upgrade");
+        httpServerMock.emit("upgrade");
+        httpServerMock.emit("upgrade");
+        httpServerMock.emit("upgrade");        
+        
+        expect(headlessChromeServer.idleBrowsers.length).toBe(0);
+        
+        driver.emit("job_end", driver);
+        await timeout(1);
+        expect(headlessChromeServer.idleBrowsers.length).toBe(1);
+        
+        while(headlessChromeServer.idleBrowsers.length == 1) await timeout(100);
+        
+        expect(headlessChromeServer.idleBrowsers.length).toBe(0);
 
         await headlessChromeServer.stop();
     });

@@ -23,7 +23,7 @@ const options: any = {
         },
         job_timeout: {
             badge: figures.warning,
-            color: 'orange',
+            color: 'magenta',
             label: 'job_timeout',
             logLevel: 'info'
         },
