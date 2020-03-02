@@ -1,8 +1,13 @@
 import { HeadlessChromeDriverFactory } from "../src/HeadlessChromeDriverFactory"
 import 'jest-extended';
 import 'expect-more';
+import { logger } from "../src/Logger";
 
 describe("HeadlessChromeDriver", () => {
+    beforeAll(()=>{
+        logger.disable();
+    });
+
     it("jobLimitExceeded should be false until driver process 30+id jobs ", () => {
         const driver = new HeadlessChromeDriverFactory().createInstance()
 
@@ -16,9 +21,8 @@ describe("HeadlessChromeDriver", () => {
 
     it("",()=>{
         const driver = new HeadlessChromeDriverFactory().createInstance();
-        driver.startJob(1);
-        driver.startJob(2);
+        driver.startJob(1);        
 
-        expect(()=>driver.endJob()).toThrowWithMessage(Error,"cannot start a new job until the previous has finished");
+        expect(()=>driver.startJob(2)).toThrowWithMessage(Error,"cannot start a new job until the previous has finished");
     });
 })

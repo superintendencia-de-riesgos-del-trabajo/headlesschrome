@@ -10,6 +10,7 @@ import { IHttpProxyFactory } from "../src/ProxyFactory";
 import { IHttpProxy } from "../src/HttpProxy";
 import { IHttpServerFactory } from "../src/HttpServerFactory";
 import { IHttpServer } from "../src/HttpServer";
+import { logger } from "../src/Logger";
 
 const idGenerator: IdGenerator = new IdGenerator();
 
@@ -108,10 +109,12 @@ describe("HeadlessChromeServer", () => {
         td.when(factoryProxyMock.createInstance()).thenReturn<IHttpProxy>(httpProxyMock);
         td.when(factoryServerMock.createInstance()).thenReturn<IHttpServer>(httpServerMock);
         td.when(factoryDriverMock.createInstance()).thenReturn<IHeadlessChromeDriver>(...drivers);
+    
+        delete process.env.POOL_SIZE;
     });
 
-    beforeEach(() => {
-        delete process.env.POOL_SIZE;
+    beforeAll(()=>{
+        logger.disable();
     });
 
     it("Pool size should be the default value when no enviroment variable is set", () => {
