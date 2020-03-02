@@ -54,7 +54,7 @@ export class Logger extends Signale {
     constructor() {
         super(options)
 
-        this.config({ displayTimestamp: true,logLevel:"info" }as any)
+        super.config({ displayTimestamp: true, logLevel: "info" } as any)
     }
 }
 
