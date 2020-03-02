@@ -15,5 +15,6 @@ module.exports = {
 	testMatch: [
 		'**/*.spec.ts'
 	],
-	testEnvironment: 'node'
+	testEnvironment: 'node',
+	setupFilesAfterEnv: ["jest-extended","expect-more"]
 };
