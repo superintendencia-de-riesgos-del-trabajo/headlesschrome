@@ -8,6 +8,7 @@ import { IHttpProxy } from "./HttpProxy";
 import { IHttpProxyFactory } from "./ProxyFactory";
 import { IHttpServer } from "./HttpServer";
 import { IHttpServerFactory } from "./HttpServerFactory";
+import { Logger, logger } from "./Logger";
 
 export class HeadLessChromeServer {
     readonly defaultPoolSize = 4;
@@ -41,7 +42,6 @@ export class HeadLessChromeServer {
         for (let i = 0; i < this.poolSize; i++) {
             await this.createInstance();
         }
-
         this.httpServer.start();
     }
 
@@ -93,7 +93,7 @@ export class HeadLessChromeServer {
 
     private async recycleInstance(instance: IHeadlessChromeDriver) {
         if (instance.jobLimitExceeded()) {
-            instance.log("jobs limit exeeded");
+            logger.warn("job limit exceeded")
             const oldPID = instance.process.pid;
             instance = await instance.restart();
             this.runningProcesses = this.runningProcesses.filter(pid => pid != oldPID);
@@ -116,6 +116,6 @@ export class HeadLessChromeServer {
     }
 
     private killBrowsers() {
-        this.runningProcesses.map(pid => treeKill(pid));
+        this.runningProcesses.map(pid => { try { treeKill(pid) } catch{ } });
     }
 }
