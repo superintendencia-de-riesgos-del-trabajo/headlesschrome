@@ -88,6 +88,7 @@ describe("HeadlessChromeServer", () => {
 
     afterAll(() => {
         td.reset();
+        process.removeAllListeners();
     });
 
     beforeEach(() => {
