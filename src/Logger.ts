@@ -49,14 +49,16 @@ interface CustomLogger {
     job_end(...msg)
     chrome_clear(...msg)
     chrome_restart(...msg)
+
+    disable();
 }
 export class Logger extends Signale {
     constructor() {
         super(options)
 
-        super.config({ displayTimestamp: true, logLevel: "info" } as any)
+        super.config({ displayTimestamp: true, logLevel: "info" });
     }
 }
 
-export const logger: CustomLogger & Signale = new Logger() as any
+export const logger: CustomLogger & Signale = new Logger();
 
