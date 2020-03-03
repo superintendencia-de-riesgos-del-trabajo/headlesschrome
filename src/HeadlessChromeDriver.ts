@@ -67,9 +67,13 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         }, this.jobsTimeout);
     }
 
-    public endJob(url = null) {
+    private clearJobTimeout() {
         this.jobTimeout && clearTimeout(this.jobTimeout)
         this.jobTimeout = null
+    }
+
+    public endJob(url = null) {
+        this.clearJobTimeout();
         logger.job_end(this.currentJob(), url)
         this.emit("job_end", this)
     }
@@ -162,8 +166,9 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
 
     public async restart() {
         try {
+            this.clearJobTimeout();
             logger.chrome_restart(this.currentJob())
-            try { await this.kill() } catch{ };
+            try { await this.kill() } catch { };
             return await this.launch()
 
         } catch (e) {
