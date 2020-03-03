@@ -8,13 +8,13 @@ import { IBrowserFactory } from "./BrowserFactory";
 
 export interface IHeadlessChromeDriver extends EventEmitter {
     jobLimitExceeded(): boolean;
-    startJob(jobId: number): IJob;    
+    startJob(jobId: number): IJob;
     getCurrentJob(): IJob;
     launch(): Promise<IHeadlessChromeDriver>;
     kill(): Promise<void>;
     clear(): Promise<void>;
 
-    
+
     browser: puppeteer.Browser;
     id: number;
     process: ChildProcess;
@@ -53,7 +53,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         return this.jobsCount >= this.jobsLimit
     }
 
-    public startJob(jobId: number) {        
+    public startJob(jobId: number) {
         if (this.jobTimeout != null) {
             const errMsg = "cannot start a new job until the previous has finished"
             logger.error(errMsg);
@@ -81,8 +81,8 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
 
         if (this.jobLimitExceeded()) {
             logger.warn(`${this.currentIdLog()} job limit exceeded`)
-            this.emit("job_limit_exceeded", this); 
-        } 
+            this.emit("job_limit_exceeded", this);
+        }
 
         return job;
     }

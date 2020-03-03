@@ -46,24 +46,23 @@ describe("HeadlessChromeDriver", () => {
     it("jobLimitExceeded should be false until driver process 30+id jobs ", async () => {
         const driver = new HeadlessChromeDriverFactory(browserFactoryMock).createInstance()
         await driver.launch();
-        expect(driver.jobLimitExceeded()).toBeFalse();
+        expect(driver.jobLimitExceeded()).toBeFalse();        
 
-        puppeteerMock.emit("targetcreated", targetMock);
-
-        for (let i = 0; i < driver.defaultJobLimit + driver.id; i++) {
+        for (let i = 0; i < driver.defaultJobLimit + driver.id; i++) {            
             driver.startJob(i);
+            puppeteerMock.emit("targetcreated", targetMock);
             puppeteerMock.emit("targetdestroyed", targetMock);
         }
+        
         expect(driver.jobLimitExceeded()).toBeTrue()
     });
 
-    it("should throw error when starting a new job before the previous has finished", () => {
+    it("should throw error when starting a new job before the previous has finished", async () => {
         const driver = new HeadlessChromeDriverFactory(browserFactoryMock).createInstance();
-        td.replace(driver, "browser", puppeteerMock);
+        await driver.launch();
 
         driver.startJob(1);
-        expect(() => driver.startJob(2)).toThrowWithMessage(Error, "cannot start a new job until the previous has finished");
-        puppeteerMock.emit("targetdestroyed");
+        expect(() => driver.startJob(2)).toThrowWithMessage(Error, "cannot start a new job until the previous has finished");        
     });
 
     it("jobsLimit should be the default value when no environment is set", () => {
@@ -96,8 +95,9 @@ describe("HeadlessChromeDriver", () => {
         expect(driver.jobsTimeout).toBe(parseInt(timeout) * 1000);
     });
 
-    it("jobsTimeout should be set to the defined value", () => {
+    it("job should remain the same while it has not finished processing", async () => {
         const driver = new HeadlessChromeDriverFactory(browserFactoryMock).createInstance()
+        await driver.launch();
 
         var job = driver.startJob(1);
         expect(() => driver.startJob(2)).toThrowError();
