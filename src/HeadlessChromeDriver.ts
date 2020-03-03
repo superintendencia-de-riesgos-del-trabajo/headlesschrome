@@ -21,7 +21,6 @@ export interface IHeadlessChromeDriver extends EventEmitter {
 export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDriver {
     readonly id: number
     private target: Target
-    private startTime: Date
     private jobsCount: number
     private jobsLimit: number
     private browser: puppeteer.Browser
@@ -29,13 +28,13 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     process: ChildProcess
     private jobTimeout: NodeJS.Timeout
     private launching: boolean
-
+    private currentJobId:number
 
     constructor(id: number) {
         super()
         this.id = id
         this.jobsCount = 0
-        this.jobsLimit = 30 + id
+        this.jobsLimit = 10 + id
         this.launching = false
     }
 
@@ -44,23 +43,30 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public startJob(jobId:number) {
+        this.currentJobId = jobId
         if (this.jobTimeout != null) {
-            logger.error("cannot start a new job until the previous has finished");
-            throw new Error("cannot start a new job until the previous has finished");
+            const errMsg = "cannot start a new job until the previous has finished"
+            logger.error(errMsg);
+            throw new Error(errMsg);
         }
 
         this.jobsCount++
         logger.job_start(this.currentJob())
         this.jobTimeout = setTimeout(() => {
+            this.jobTimeout = null
+            logger.job_timeout(this.currentJob());
             this.emit("job_timeout", this)
-            logger.job_timeout(this.toString());
         }, 30000)
     }
 
-    public endJob() {
+    private clearJobTimeout(){
         this.jobTimeout && clearTimeout(this.jobTimeout)
         this.jobTimeout = null
-        logger.job_end(this.currentJob())
+    }
+
+    public endJob(url=null) {
+        this.clearJobTimeout();
+        logger.job_end(this.currentJob(), url)
         this.emit("job_end", this)
     }
 
@@ -91,7 +97,6 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
                 headless: true,
                 ignoreHTTPSErrors: true
             });
-            this.startTime = new Date()
             this.wsEndpoint = this.browser.wsEndpoint()
             this.process = this.browser.process()
 
@@ -99,25 +104,24 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
                 this.restart()
             });
             this.browser.on("targetchanged", (target) => {
-                logger.debug(`${this.currentJob()} ${target.type()} changed`, target.url());
+                if (target.type() == 'page') logger.nav(this.currentJob(),target.url())
             });
             this.browser.on('targetcreated', async (target) => {
                 if (!this.target && target.type() == "browser" && !this.launching) {
                     this.target = target
                 }
-                logger.debug(`${this.currentJob()} ${target.type()} created`, target.url())
             });
             this.browser.on('targetdestroyed', async (target) => {
-                logger.debug(`${target.type()} closed`, target.url())
                 if (this.target == target) {
+                    const url = target.url()
                     this.target = null
-                    this.endJob()
+                    this.endJob(url)
                 }
             });
         } catch (e) {
             logger.error("issue launching browser", e)
         }
-        logger.chrome_start(`[ID: ${this.id}] [PID: ${this.browser.process().pid}] [URL: ${this.wsEndpoint}]`)
+        logger.chrome_start(this.currentBrowser())
         this.launching = false
         this.emit("launch", this)
         return this;
@@ -125,6 +129,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
 
     public async kill() {
         try {
+            this.clearJobTimeout();
             this.browser.removeAllListeners()
             await this.browser.close()
             this.process.kill();
@@ -164,10 +169,13 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     currentID(){
-        return `[ID: ${this.id}]`
+        return `[CHROME: ${this.id}]`
     }
     currentJob() {
-        return `[ID: ${this.id}]` + (this.jobsCount ? ` [job:${this.jobsCount}]` : '')
+        return `[CHROME: ${this.id}]` + (this.jobsCount ? ` [JOB: ${this.currentJobId}]` : '')
+    }
+    currentBrowser(){
+        return `[CHROME: ${this.id}]`.padEnd(8,' ') + ` [PID: ${this.browser.process().pid}]`.padEnd(13,' ') + ` [URL: ${this.wsEndpoint}]`
     }
 
 }
