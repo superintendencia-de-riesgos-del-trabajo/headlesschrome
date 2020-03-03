@@ -24,7 +24,13 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         td.replace(this.process, "pid", () => this.id);
 
         this.wsEndpoint = "ws://localhost:30000/";
-    }
+        this.jobsLimit = 30;
+        this.jobsTimeout = 30000;
+    }    
+    jobsLimit:number;
+    jobsTimeout:number;    
+    defaultJobLimit = 30;
+    defaultJobTimeout = 30;
 
     jobLimitExceeded(): boolean {
         return false;

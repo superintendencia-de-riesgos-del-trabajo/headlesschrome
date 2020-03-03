@@ -6,7 +6,7 @@ import { logger } from "./Logger"
 
 export interface IHeadlessChromeDriver extends EventEmitter {
     jobLimitExceeded(): boolean;
-    startJob(jobId:number);
+    startJob(jobId: number);
     endJob();
     launch(): Promise<IHeadlessChromeDriver>;
     kill(): Promise<void>;
@@ -15,26 +15,34 @@ export interface IHeadlessChromeDriver extends EventEmitter {
 
     id: number;
     process: ChildProcess;
-    wsEndpoint: string
+    wsEndpoint: string;
+    defaultJobLimit: number;
+    defaultJobTimeout: number;
+    jobsLimit: number;
+    jobsTimeout: number;
 }
 
 export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDriver {
-    readonly id: number
-    private target: Target
-    private jobsCount: number
-    private jobsLimit: number
-    private browser: puppeteer.Browser
-    wsEndpoint: string
-    process: ChildProcess
-    private jobTimeout: NodeJS.Timeout
-    private launching: boolean
-    private currentJobId:number
+    readonly defaultJobLimit: number = 30;
+    readonly defaultJobTimeout: number = 30;
+    readonly id: number;
+    private target: Target;
+    private jobsCount: number;
+    readonly jobsLimit: number;
+    readonly jobsTimeout: number;
+    private browser: puppeteer.Browser;
+    wsEndpoint: string;
+    process: ChildProcess;
+    private jobTimeout: NodeJS.Timeout;
+    private launching: boolean;
+    private currentJobId: number;
 
     constructor(id: number) {
         super()
         this.id = id
         this.jobsCount = 0
-        this.jobsLimit = 10 + id
+        this.jobsLimit = (parseInt(process.env.INSTANCE_JOB_LIMIT) || this.defaultJobLimit) + id
+        this.jobsTimeout = (parseInt(process.env.INSTANCE_JOB_TIMEOUT) || this.defaultJobTimeout) * 1000;
         this.launching = false
     }
 
@@ -42,7 +50,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         return this.jobsCount >= this.jobsLimit
     }
 
-    public startJob(jobId:number) {
+    public startJob(jobId: number) {
         this.currentJobId = jobId
         if (this.jobTimeout != null) {
             const errMsg = "cannot start a new job until the previous has finished"
@@ -56,15 +64,15 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
             this.jobTimeout = null
             logger.job_timeout(this.currentJob());
             this.emit("job_timeout", this)
-        }, 30000)
+        }, this.jobsTimeout);
     }
 
-    private clearJobTimeout(){
+    private clearJobTimeout() {
         this.jobTimeout && clearTimeout(this.jobTimeout)
         this.jobTimeout = null
     }
 
-    public endJob(url=null) {
+    public endJob(url = null) {
         this.clearJobTimeout();
         logger.job_end(this.currentJob(), url)
         this.emit("job_end", this)
@@ -104,7 +112,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
                 this.restart()
             });
             this.browser.on("targetchanged", (target) => {
-                if (target.type() == 'page') logger.nav(this.currentJob(),target.url())
+                if (target.type() == 'page') logger.nav(this.currentJob(), target.url())
             });
             this.browser.on('targetcreated', async (target) => {
                 if (!this.target && target.type() == "browser" && !this.launching) {
@@ -129,7 +137,6 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
 
     public async kill() {
         try {
-            this.clearJobTimeout();
             this.browser.removeAllListeners()
             await this.browser.close()
             this.process.kill();
@@ -159,23 +166,24 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
 
     public async restart() {
         try {
+            this.clearJobTimeout();
             logger.chrome_restart(this.currentJob())
-            try { await this.kill() } catch{ };
+            try { await this.kill() } catch { };
             return await this.launch()
-            
+
         } catch (e) {
             logger.error("issue restarting browser", e)
         }
     }
 
-    currentID(){
+    currentID() {
         return `[CHROME: ${this.id}]`
     }
     currentJob() {
         return `[CHROME: ${this.id}]` + (this.jobsCount ? ` [JOB: ${this.currentJobId}]` : '')
     }
-    currentBrowser(){
-        return `[CHROME: ${this.id}]`.padEnd(8,' ') + ` [PID: ${this.browser.process().pid}]`.padEnd(13,' ') + ` [URL: ${this.wsEndpoint}]`
+    currentBrowser() {
+        return `[CHROME: ${this.id}]`.padEnd(8, ' ') + ` [PID: ${this.browser.process().pid}]`.padEnd(13, ' ') + ` [URL: ${this.wsEndpoint}]`
     }
 
 }
