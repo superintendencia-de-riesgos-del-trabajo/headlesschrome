@@ -53,14 +53,14 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public startJob(jobId: number) {
-        
+
         if (this.jobTimeout != null) {
             const errMsg = "cannot start a new job until the previous has finished"
             logger.error(errMsg);
             throw new Error(errMsg);
         }
-        
-        this.currentJob =  new Job(jobId);
+
+        this.currentJob = new Job(jobId);
         this.jobsCount++
         logger.job_start(this.currentJobLog())
         this.jobTimeout = setTimeout(() => {
@@ -73,14 +73,14 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public endJob(url = null) {
-        this.clearJobTimeout();
         logger.job_end(this.currentJobLog(), url)
-        this.emit("job_end", this)
-
+        this.currentJob = null;
+        this.clearJobTimeout();
+        this.emit("job_end", this);
         return this.currentJob;
     }
 
-    public getCurrentJob(){
+    public getCurrentJob() {
         return this.currentJob;
     }
 
