@@ -14,7 +14,7 @@ export class HeadLessChromeServer {
     readonly defaultPoolSize = 4;
     readonly poolSize: number;
     readonly httpProxy: IHttpProxy;
-    readonly jobIdGenerator : IdGenerator
+    readonly jobIdGenerator: IdGenerator
 
     idleBrowsers: IHeadlessChromeDriver[] = [];
     private httpServer: IHttpServer;
@@ -77,6 +77,15 @@ export class HeadLessChromeServer {
         instance.on("job_timeout", this.onInstanceJobTimeout.bind(this));
         instance.on("job_end", this.onInstanceEndJob.bind(this));
         instance.on("launch", this.onInstanceLaunch.bind(this));
+        instance.on("death", this.onInstanceDeath.bind(this));
+        instance.on("job_limit_exceeded", this.onInstanceDeath.bind(this));
+    }
+
+    private async onInstanceDeath(instance: IHeadlessChromeDriver) {
+        const oldPID = instance.process.pid;
+        this.runningProcesses = this.runningProcesses.filter(pid => pid != oldPID);
+        await instance.kill();
+        this.createInstance();
     }
 
     private async onInstanceLaunch(instance: IHeadlessChromeDriver) {
@@ -93,15 +102,7 @@ export class HeadLessChromeServer {
     }
 
     private async recycleInstance(instance: IHeadlessChromeDriver) {
-        if (instance.jobLimitExceeded()) {
-            logger.warn("job limit exceeded")
-            const oldPID = instance.process.pid;
-            instance = await instance.restart();
-            this.runningProcesses = this.runningProcesses.filter(pid => pid != oldPID);
-        }
-        else {
-            await instance.clear();
-        }
+        await instance.clear();
 
         this.addIdleBrowser(instance);
     }
