@@ -1,6 +1,6 @@
 import { HeadLessChromeServer } from "../src/HeadlessChromeServer"
 import _ from "lodash";
-import td, { when } from "testdouble";
+import td from "testdouble";
 import { IHeadlessChromeDriverFactory } from "../src/HeadlessChromeDriverFactory";
 import { IHeadlessChromeDriver } from "../src/HeadlessChromeDriver";
 import { EventEmitter } from 'events';
@@ -12,6 +12,7 @@ import { IHttpServerFactory } from "../src/HttpServerFactory";
 import { IHttpServer } from "../src/HttpServer";
 import { logger } from "../src/Logger";
 import { Job } from "../src/Job";
+import puppeteer from "puppeteer"
 
 const idGenerator: IdGenerator = new IdGenerator();
 
@@ -28,6 +29,8 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         this.jobsLimit = 30;
         this.jobsTimeout = 30000;
     }
+
+    browser = td.object<puppeteer.Browser>();
     jobsLimit: number;
     jobsTimeout: number;
     defaultJobLimit = 30;
@@ -39,10 +42,6 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
     }
 
     startJob() {
-        return this.currentJob;
-    }
-
-    endJob() {
         return this.currentJob;
     }
 
@@ -204,7 +203,7 @@ describe("HeadlessChromeServer", () => {
 
         expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeTruthy();
 
-        driver.emit("job_end", driver);
+        driver.emit("job_limit_exceeded", driver);
 
         while (headlessChromeServer.idleBrowsers.length == 0) await timeout(50);
 
@@ -232,30 +231,6 @@ describe("HeadlessChromeServer", () => {
 
         expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize);
         expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeTruthy();
-
-        await headlessChromeServer.stop();
-    });
-
-    it("should restart an instance that has exceeded its limit after a job timeout", async () => {
-        process.env.POOL_SIZE = "1";
-
-        const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
-        await headlessChromeServer.start();
-
-        let driver = headlessChromeServer.idleBrowsers[0];
-
-        td.replace(driver, "jobLimitExceeded", () => true);
-
-        httpServerMock.emit("upgrade");
-
-        expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeTruthy();
-
-        driver.emit("job_timeout", driver);
-
-        while (headlessChromeServer.idleBrowsers.length == 0) await timeout(50);
-
-        expect(headlessChromeServer.runningProcesses.includes(driver.process.pid)).toBeFalsy();
-        expect(headlessChromeServer.idleBrowsers.length).toBe(headlessChromeServer.poolSize);
 
         await headlessChromeServer.stop();
     });

@@ -4,17 +4,18 @@ import _ from "lodash"
 import { EventEmitter } from 'events';
 import { logger } from "./Logger"
 import { IJob, Job } from "./Job";
+import { IBrowserFactory } from "./BrowserFactory";
 
 export interface IHeadlessChromeDriver extends EventEmitter {
     jobLimitExceeded(): boolean;
     startJob(jobId: number): IJob;
-    endJob(): IJob;
     getCurrentJob(): IJob;
     launch(): Promise<IHeadlessChromeDriver>;
     kill(): Promise<void>;
     clear(): Promise<void>;
-    restart(): Promise<IHeadlessChromeDriver>;
 
+
+    browser: puppeteer.Browser;
     id: number;
     process: ChildProcess;
     wsEndpoint: string;
@@ -32,14 +33,14 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     private jobsCount: number;
     readonly jobsLimit: number;
     readonly jobsTimeout: number;
-    private browser: puppeteer.Browser;
+    public browser: puppeteer.Browser;
     wsEndpoint: string;
     process: ChildProcess;
     private jobTimeout: NodeJS.Timeout;
     private launching: boolean;
     private currentJob: IJob;
 
-    constructor(id: number) {
+    constructor(id: number, readonly browserFactory: IBrowserFactory) {
         super()
         this.id = id
         this.jobsCount = 0
@@ -53,7 +54,6 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public startJob(jobId: number) {
-
         if (this.jobTimeout != null) {
             const errMsg = "cannot start a new job until the previous has finished"
             logger.error(errMsg);
@@ -72,12 +72,19 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         return this.currentJob;
     }
 
-    public endJob(url = null) {
+    private endJob(url = null) {
+        const job = this.currentJob;
         logger.job_end(this.currentJobLog(), url)
         this.currentJob = null;
         this.clearJobTimeout();
         this.emit("job_end", this);
-        return this.currentJob;
+
+        if (this.jobLimitExceeded()) {
+            logger.warn(`${this.currentIdLog()} job limit exceeded`)
+            this.emit("job_limit_exceeded", this);
+        }
+
+        return job;
     }
 
     public getCurrentJob() {
@@ -89,47 +96,32 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         this.jobTimeout = null
     }
 
+    private emitDeath() {
+        this.emit("death", this);
+    }
+
     public async launch() {
         this.launching = true
         this.jobsCount = 0
         try {
-            this.browser = await puppeteer.launch({
-                args: ['--v1=1', '--disable-gpu',
-                    '--disable-canvas-aa', // Disable antialiasing on 2d canvas
-                    '--disable-2d-canvas-clip-aa', // Disable antialiasing on 2d canvas clips
-                    '--disable-gl-drawing-for-tests', // BEST OPTION EVER! Disables GL drawing operations which produce pixel output. With this the GL output will not be correct but tests will run faster.
-                    '--disable-dev-shm-usage', // ???
-                    '--no-zygote', // wtf does that mean ?
-                    '--use-gl=swiftshader', // better cpu usage with --use-gl=desktop rather than --use-gl=swiftshader, still needs more testing.
-                    '--enable-webgl',
-                    '--hide-scrollbars',
-                    '--mute-audio',
-                    '--no-first-run',
-                    '--disable-infobars',
-                    '--disable-breakpad',
-                    '--window-size=1280,1024', // see defaultViewport
-                    '--no-sandbox', // meh but better resource comsuption
-                    '--disable-setuid-sandbox'],
-                dumpio: false,
-                handleSIGINT: true,
-                handleSIGTERM: true,
-                headless: true,
-                ignoreHTTPSErrors: true
-            });
+            this.browser = await this.browserFactory.createInstance();
             this.wsEndpoint = this.browser.wsEndpoint()
             this.process = this.browser.process()
 
             this.browser.on("disconnected", () => {
-                this.restart()
+                this.emitDeath();
             });
+
             this.browser.on("targetchanged", (target) => {
                 if (target.type() == 'page') logger.nav(this.currentJobLog(), target.url())
             });
+
             this.browser.on('targetcreated', async (target) => {
                 if (!this.target && target.type() == "browser" && !this.launching) {
                     this.target = target
                 }
             });
+
             this.browser.on('targetdestroyed', async (target) => {
                 if (this.target == target) {
                     const url = target.url()
@@ -148,6 +140,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
 
     public async kill() {
         try {
+            this.clearJobTimeout();
             this.browser.removeAllListeners()
             await this.browser.close()
             this.process.kill();
@@ -171,19 +164,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
             contexts.map(async c => { try { await c.close() } catch{ } })
         } catch (e) {
             logger.error("issue clearing browser.", e)
-            await this.restart()
-        }
-    }
-
-    public async restart() {
-        try {
-            this.clearJobTimeout();
-            logger.chrome_restart(this.currentJobLog())
-            try { await this.kill() } catch { };
-            return await this.launch()
-
-        } catch (e) {
-            logger.error("issue restarting browser", e)
+            await this.emitDeath();
         }
     }
 

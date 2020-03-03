@@ -62,8 +62,7 @@ interface LoggerOps {
     chrome_clear(...msg)
     chrome_restart(...msg)
 
-    disable();
-    logLevel(level: string)
+    disable(); 
 }
 export class Logger extends Signale {
     constructor() {
