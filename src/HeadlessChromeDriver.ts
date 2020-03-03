@@ -3,11 +3,13 @@ import { ChildProcess } from "child_process";
 import _ from "lodash"
 import { EventEmitter } from 'events';
 import { logger } from "./Logger"
+import { IJob, Job } from "./Job";
 
 export interface IHeadlessChromeDriver extends EventEmitter {
     jobLimitExceeded(): boolean;
-    startJob(jobId: number);
-    endJob();
+    startJob(jobId: number): IJob;
+    endJob(): IJob;
+    getCurrentJob(): IJob;
     launch(): Promise<IHeadlessChromeDriver>;
     kill(): Promise<void>;
     clear(): Promise<void>;
@@ -35,7 +37,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     process: ChildProcess;
     private jobTimeout: NodeJS.Timeout;
     private launching: boolean;
-    private currentJobId: number;
+    private currentJob: IJob;
 
     constructor(id: number) {
         super()
@@ -51,31 +53,40 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public startJob(jobId: number) {
-        this.currentJobId = jobId
+        
         if (this.jobTimeout != null) {
             const errMsg = "cannot start a new job until the previous has finished"
             logger.error(errMsg);
             throw new Error(errMsg);
         }
-
+        
+        this.currentJob =  new Job(jobId);
         this.jobsCount++
-        logger.job_start(this.currentJob())
+        logger.job_start(this.currentJobLog())
         this.jobTimeout = setTimeout(() => {
             this.jobTimeout = null
-            logger.job_timeout(this.currentJob());
+            logger.job_timeout(this.currentJobLog());
             this.emit("job_timeout", this)
         }, this.jobsTimeout);
+
+        return this.currentJob;
+    }
+
+    public endJob(url = null) {
+        this.clearJobTimeout();
+        logger.job_end(this.currentJobLog(), url)
+        this.emit("job_end", this)
+
+        return this.currentJob;
+    }
+
+    public getCurrentJob(){
+        return this.currentJob;
     }
 
     private clearJobTimeout() {
         this.jobTimeout && clearTimeout(this.jobTimeout)
         this.jobTimeout = null
-    }
-
-    public endJob(url = null) {
-        this.clearJobTimeout();
-        logger.job_end(this.currentJob(), url)
-        this.emit("job_end", this)
     }
 
     public async launch() {
@@ -112,7 +123,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
                 this.restart()
             });
             this.browser.on("targetchanged", (target) => {
-                if (target.type() == 'page') logger.nav(this.currentJob(), target.url())
+                if (target.type() == 'page') logger.nav(this.currentJobLog(), target.url())
             });
             this.browser.on('targetcreated', async (target) => {
                 if (!this.target && target.type() == "browser" && !this.launching) {
@@ -129,7 +140,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         } catch (e) {
             logger.error("issue launching browser", e)
         }
-        logger.chrome_start(this.currentBrowser())
+        logger.chrome_start(this.currentBrowserLog())
         this.launching = false
         this.emit("launch", this)
         return this;
@@ -146,7 +157,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public async clear() {
-        logger.chrome_clear(this.currentJob());
+        logger.chrome_clear(this.currentJobLog());
         try {
             const pages = await this.browser.pages()
             const blankPage = await this.browser.newPage()
@@ -167,7 +178,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     public async restart() {
         try {
             this.clearJobTimeout();
-            logger.chrome_restart(this.currentJob())
+            logger.chrome_restart(this.currentJobLog())
             try { await this.kill() } catch { };
             return await this.launch()
 
@@ -176,14 +187,14 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         }
     }
 
-    currentID() {
-        return `[CHROME: ${this.id}]`
+    currentIdLog() {
+        return `[CHROME: ${this.id}]`.padEnd(8, ' ');
     }
-    currentJob() {
-        return `[CHROME: ${this.id}]` + (this.jobsCount ? ` [JOB: ${this.currentJobId}]` : '')
+    currentJobLog() {
+        return `${this.currentIdLog()}` + (this.jobsCount ? ` ${this.currentJob.jobLog()}` : '')
     }
-    currentBrowser() {
-        return `[CHROME: ${this.id}]`.padEnd(8, ' ') + ` [PID: ${this.browser.process().pid}]`.padEnd(13, ' ') + ` [URL: ${this.wsEndpoint}]`
+    currentBrowserLog() {
+        return `${this.currentIdLog()}` + ` [PID: ${this.browser.process().pid}]`.padEnd(13, ' ') + ` [URL: ${this.wsEndpoint}]`
     }
 
 }

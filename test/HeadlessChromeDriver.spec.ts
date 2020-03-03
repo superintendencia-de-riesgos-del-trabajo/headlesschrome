@@ -59,5 +59,13 @@ describe("HeadlessChromeDriver", () => {
         const driver = new HeadlessChromeDriverFactory().createInstance()
 
         expect(driver.jobsTimeout).toBe(parseInt(timeout) * 1000);
-    })
+    });
+
+    it("jobsTimeout should be set to the defined value", () => {
+        const driver = new HeadlessChromeDriverFactory().createInstance()
+
+        var job = driver.startJob(1);
+        expect(() => driver.startJob(2)).toThrowError();
+        expect(driver.getCurrentJob()).toBe(job);
+    });
 })

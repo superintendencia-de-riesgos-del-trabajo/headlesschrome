@@ -11,6 +11,7 @@ import { IHttpProxy } from "../src/HttpProxy";
 import { IHttpServerFactory } from "../src/HttpServerFactory";
 import { IHttpServer } from "../src/HttpServer";
 import { logger } from "../src/Logger";
+import { Job } from "../src/Job";
 
 const idGenerator: IdGenerator = new IdGenerator();
 
@@ -26,21 +27,27 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         this.wsEndpoint = "ws://localhost:30000/";
         this.jobsLimit = 30;
         this.jobsTimeout = 30000;
-    }    
-    jobsLimit:number;
-    jobsTimeout:number;    
+    }
+    jobsLimit: number;
+    jobsTimeout: number;
     defaultJobLimit = 30;
     defaultJobTimeout = 30;
+    currentJob = new Job(1);
 
     jobLimitExceeded(): boolean {
         return false;
     }
 
     startJob() {
+        return this.currentJob;
     }
 
     endJob() {
+        return this.currentJob;
+    }
 
+    getCurrentJob() {
+        return this.currentJob;
     }
 
     async launch(): Promise<IHeadlessChromeDriver> {
@@ -115,11 +122,11 @@ describe("HeadlessChromeServer", () => {
         td.when(factoryProxyMock.createInstance()).thenReturn<IHttpProxy>(httpProxyMock);
         td.when(factoryServerMock.createInstance()).thenReturn<IHttpServer>(httpServerMock);
         td.when(factoryDriverMock.createInstance()).thenReturn<IHeadlessChromeDriver>(...drivers);
-    
+
         delete process.env.POOL_SIZE;
     });
 
-    beforeAll(()=>{
+    beforeAll(() => {
         logger.disable();
     });
 
