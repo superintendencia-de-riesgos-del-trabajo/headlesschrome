@@ -8,7 +8,7 @@ import { IHttpProxy } from "./HttpProxy";
 import { IHttpProxyFactory } from "./ProxyFactory";
 import { IHttpServer } from "./HttpServer";
 import { IHttpServerFactory } from "./HttpServerFactory";
-import { Logger, logger } from "./Logger";
+import { logger } from "./Logger";
 
 export class HeadLessChromeServer {
     readonly defaultPoolSize = 4;
