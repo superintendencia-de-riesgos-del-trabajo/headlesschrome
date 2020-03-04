@@ -60,7 +60,7 @@ interface LoggerOps {
     job_timeout(...msg)
     job_end(...msg)
     chrome_clear(...msg)
-    chrome_restart(...msg)
+    job_limit_exceeded(...msg)
 
     disable(); 
 }
