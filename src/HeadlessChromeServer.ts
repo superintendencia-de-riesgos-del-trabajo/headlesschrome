@@ -34,8 +34,7 @@ export class HeadLessChromeServer {
         process.on('uncaughtException', function (err) {
             console.error(err.stack);
         });
-
-        process.setMaxListeners(this.poolSize + 3);
+        
         process.once("exit", this.killBrowsers.bind(this));
     }
 
@@ -56,6 +55,7 @@ export class HeadLessChromeServer {
     }
 
     private async createInstance() {
+        process.setMaxListeners(process.getMaxListeners() + 3);
         let instance = this.headlessChromeDriverFactory.createInstance();
         this.setupInstance(instance);
         await instance.launch();
