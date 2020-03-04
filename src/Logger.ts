@@ -32,16 +32,16 @@ const options: any = {
             label: 'job_timeout',
             logLevel: 'debug'
         },
-        chrome_clear: {
-            badge: figures.pointer,
-            color: 'yellow',
-            label: 'chrome_clear',
+        job_limit_exceeded: {
+            badge: figures.warning,
+            color: 'magenta',
+            label: 'job_limit_exceeded',
             logLevel: 'debug'
         },
-        chrome_restart: {
-            badge: figures.pointerSmall,
+        chrome_clear: {
+            badge: figures.line,
             color: 'yellow',
-            label: 'chrome_restart',
+            label: 'chrome_clear',
             logLevel: 'debug'
         },
         nav: {

@@ -77,13 +77,16 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         logger.job_end(this.currentJobLog(), url)
         this.currentJob = null;
         this.clearJobTimeout();
-        this.emit("job_end", this);
 
         if (this.jobLimitExceeded()) {
-            logger.warn(`${this.currentIdLog()} job limit exceeded`)
+            logger.job_limit_exceeded(this.currentIdLog())
             this.emit("job_limit_exceeded", this);
         }
+        else {
 
+            this.emit("job_end", this);
+
+        }
         return job;
     }
 
@@ -142,8 +145,8 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         try {
             this.clearJobTimeout();
             this.browser.removeAllListeners()
-            await this.browser.close()
-            this.process.kill();
+            try{await this.browser.close()} catch {}
+            this.process.kill("SIGTERM");
         } catch (e) {
             logger.error("issue killing browser", e)
         }
@@ -172,7 +175,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         return `[CHROME: ${this.id}]`.padEnd(8, ' ');
     }
     currentJobLog() {
-        return `${this.currentIdLog()}` + (this.jobsCount ? ` ${this.currentJob.jobLog()}` : '')
+        return `${this.currentIdLog()}` + (this.currentJob ? ` ${this.currentJob.jobLog()}` : '')
     }
     currentBrowserLog() {
         return `${this.currentIdLog()}` + ` [PID: ${this.browser.process().pid}]`.padEnd(13, ' ') + ` [URL: ${this.wsEndpoint}]`
