@@ -146,10 +146,11 @@ describe("HeadlessChromeServer", () => {
         expect(_.get(headlessChromeServer.httpProxy, "options").ws).toBeTruthy();
     });
 
-    it("process.maxListeners should be greater than poolsize", () => {
+    it("process.maxListeners should be greater than poolsize", async () => {
         const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
+        await headlessChromeServer.start()
 
-        expect(process.getMaxListeners()).toBe(headlessChromeServer.poolSize + 3);
+        expect(process.getMaxListeners()).toBeGreaterThan(headlessChromeServer.poolSize *3);
     });
 
     it("idleBrowsers should be filled accordingly", async () => {
