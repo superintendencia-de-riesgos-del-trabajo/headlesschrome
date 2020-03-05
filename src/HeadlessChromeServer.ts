@@ -34,10 +34,10 @@ export class HeadLessChromeServer {
         console.error(err.stack);
     }
 
-    private exitProcess() {
+    private async exitProcess() {
         process.removeListener("uncaughtException", this.logUncaughtException);
 
-        this.killBrowsers();
+        await this.killBrowsers();
     }
 
     private initialize() {
