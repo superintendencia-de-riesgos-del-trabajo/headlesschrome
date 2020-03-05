@@ -30,12 +30,20 @@ export class HeadLessChromeServer {
         this.initialize();
     }
 
+    private logUncaughtException(err: Error) {
+        console.error(err.stack);
+    }
+
+    private exitProcess() {
+        process.removeListener("uncaughtException", this.logUncaughtException);
+
+        this.killBrowsers();
+    }
+
     private initialize() {
-        process.on('uncaughtException', function (err) {
-            console.error(err.stack);
-        });
-        
-        process.once("exit", this.killBrowsers.bind(this));
+        process.on('uncaughtException', this.logUncaughtException.bind(this));
+
+        process.once("exit", this.exitProcess.bind(this));
     }
 
     public async start(port = 3000) {
@@ -117,7 +125,8 @@ export class HeadLessChromeServer {
         }
     }
 
-    private killBrowsers() {
+    private async killBrowsers() {
+        await Promise.all(this.idleBrowsers.map(browser => browser.kill()));
         this.runningProcesses.map(pid => { try { treeKill(pid) } catch{ } });
     }
 }
