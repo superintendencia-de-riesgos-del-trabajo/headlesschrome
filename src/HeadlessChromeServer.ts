@@ -11,7 +11,7 @@ import { IHttpServerFactory } from "./HttpServerFactory";
 import { logger } from "./Logger";
 
 export class HeadLessChromeServer {
-    readonly defaultPoolSize = 4;
+    readonly defaultPoolSize = 10;
     readonly poolSize: number;
     readonly httpProxy: IHttpProxy;
     readonly jobIdGenerator: IdGenerator
@@ -34,7 +34,7 @@ export class HeadLessChromeServer {
         process.on('uncaughtException', function (err) {
             console.error(err.stack);
         });
-        
+
         process.once("exit", this.killBrowsers.bind(this));
     }
 
@@ -102,9 +102,10 @@ export class HeadLessChromeServer {
     }
 
     private async recycleInstance(instance: IHeadlessChromeDriver) {
-        await instance.clear();
-
-        this.addIdleBrowser(instance);
+        if (!instance.disposed) {
+            await instance.clear();
+            this.addIdleBrowser(instance);
+        }
     }
 
     private addProcess(pid: number) {

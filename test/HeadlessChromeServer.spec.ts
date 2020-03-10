@@ -29,6 +29,7 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         this.jobsLimit = 30;
         this.jobsTimeout = 30000;
     }
+    disposed: boolean=false
 
     browser = td.object<puppeteer.Browser>();
     jobsLimit: number;
@@ -60,14 +61,6 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
 
     async clear(): Promise<void> {
 
-    }
-
-    async restart(): Promise<IHeadlessChromeDriver> {
-        this.process = td.object<ChildProcess>();
-
-        td.replace(this.process, "pid", () => this.id + 1000);
-
-        return this;
     }
 
     log(...msg: any[]) {
@@ -103,7 +96,7 @@ describe("HeadlessChromeServer", () => {
 
     let drivers: IHeadlessChromeDriver[];
 
-    afterAll(() => {
+    afterEach(() => {
         td.reset();
         process.removeAllListeners();
     });
