@@ -11,7 +11,7 @@ import { IHttpServerFactory } from "./HttpServerFactory";
 import { logger } from "./Logger";
 
 export class HeadLessChromeServer {
-    readonly defaultPoolSize = 4;
+    static readonly defaultPoolSize = 10;
     readonly poolSize: number;
     readonly httpProxy: IHttpProxy;
     readonly jobIdGenerator: IdGenerator
@@ -23,7 +23,7 @@ export class HeadLessChromeServer {
 
     constructor(chromeDriverFactory: IHeadlessChromeDriverFactory, proxyFactory: IHttpProxyFactory, httpServerFactory: IHttpServerFactory) {
         this.headlessChromeDriverFactory = chromeDriverFactory;
-        this.poolSize = parseInt(process.env.POOL_SIZE) || this.defaultPoolSize;
+        this.poolSize = parseInt(process.env.POOL_SIZE) || HeadLessChromeServer.defaultPoolSize;
         this.httpProxy = proxyFactory.createInstance();
         this.httpServer = httpServerFactory.createInstance().onUpgrade(this.handleRequest.bind(this));
         this.jobIdGenerator = new IdGenerator();
@@ -42,7 +42,6 @@ export class HeadLessChromeServer {
 
     private initialize() {
         process.on('uncaughtException', this.logUncaughtException.bind(this));
-
         process.once("exit", this.exitProcess.bind(this));
     }
 
@@ -110,9 +109,10 @@ export class HeadLessChromeServer {
     }
 
     private async recycleInstance(instance: IHeadlessChromeDriver) {
-        await instance.clear();
-
-        this.addIdleBrowser(instance);
+        if (!instance.disposed) {
+            await instance.clear();
+            this.addIdleBrowser(instance);
+        }
     }
 
     private addProcess(pid: number) {

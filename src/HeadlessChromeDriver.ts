@@ -7,6 +7,7 @@ import { IJob, Job } from "./Job";
 import { IBrowserFactory } from "./BrowserFactory";
 
 export interface IHeadlessChromeDriver extends EventEmitter {
+    disposed: boolean;
     jobLimitExceeded(): boolean;
     startJob(jobId: number): IJob;
     getCurrentJob(): IJob;
@@ -33,15 +34,18 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     private jobsCount: number;
     readonly jobsLimit: number;
     readonly jobsTimeout: number;
-    public browser: puppeteer.Browser;
-    wsEndpoint: string;
-    process: ChildProcess;
     private jobTimeout: NodeJS.Timeout;
     private launching: boolean;
     private currentJob: IJob;
 
+    public process: ChildProcess;
+    public wsEndpoint: string;
+    public browser: puppeteer.Browser;
+    public disposed: boolean;
+
     constructor(id: number, readonly browserFactory: IBrowserFactory) {
         super()
+        this.disposed = false
         this.id = id
         this.jobsCount = 0
         this.jobsLimit = (parseInt(process.env.INSTANCE_JOB_LIMIT) || this.defaultJobLimit) + id
@@ -54,11 +58,8 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     public startJob(jobId: number) {
-        if (this.jobTimeout != null) {
-            const errMsg = "cannot start a new job until the previous has finished"
-            logger.error(errMsg);
-            throw new Error(errMsg);
-        }
+        if (this.disposed) this.throwError("cannot start a new job on a disposed driver")
+        if (this.jobTimeout != null) this.throwError("cannot start a new job until the previous has finished")
 
         this.currentJob = new Job(jobId);
         this.jobsCount++
@@ -72,22 +73,35 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         return this.currentJob;
     }
 
+    private dispose() {
+        this.disposed = true
+    }
+
+    private throwError(msg) {
+        logger.error(msg);
+        throw new Error(msg);
+    }
+
     private endJob(url = null) {
         const job = this.currentJob;
+        this.clearCurrentJob()
         logger.job_end(this.currentJobLog(), url)
-        this.currentJob = null;
-        this.clearJobTimeout();
+        this.checkJobLimit()
+        this.emit("job_end", this);
+        return job;
+    }
 
+    private checkJobLimit(){
         if (this.jobLimitExceeded()) {
+            this.dispose()
             logger.job_limit_exceeded(this.currentIdLog())
             this.emit("job_limit_exceeded", this);
         }
-        else {
+    }
 
-            this.emit("job_end", this);
-
-        }
-        return job;
+    private clearCurrentJob() {
+        this.currentJob = null;
+        this.clearJobTimeout();
     }
 
     public getCurrentJob() {
@@ -100,6 +114,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
     }
 
     private emitDeath() {
+        this.dispose()
         this.emit("death", this);
     }
 
@@ -148,6 +163,7 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
             this.removeAllListeners();
             try { await this.browser.close() } catch { }
             this.process.kill("SIGTERM");
+
         } catch (e) {
             logger.error("issue killing browser", e)
         }
