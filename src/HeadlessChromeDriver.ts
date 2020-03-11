@@ -160,8 +160,10 @@ export class HeadlessChromeDriver extends EventEmitter implements IHeadlessChrom
         try {
             this.clearJobTimeout();
             this.browser.removeAllListeners()
+            this.removeAllListeners();
             try { await this.browser.close() } catch { }
-            this.process.kill("SIGKILL");
+            this.process.kill("SIGTERM");
+
         } catch (e) {
             logger.error("issue killing browser", e)
         }
