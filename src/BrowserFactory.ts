@@ -23,7 +23,8 @@ export class BrowserFactory {
                 '--disable-breakpad',
                 '--window-size=1280,1024', // see defaultViewport
                 '--no-sandbox', // meh but better resource comsuption
-                '--disable-setuid-sandbox'],
+                '--disable-setuid-sandbox'
+            ],
             dumpio: false,
             handleSIGINT: true,
             handleSIGTERM: true,
