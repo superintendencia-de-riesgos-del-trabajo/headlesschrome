@@ -6,12 +6,14 @@ import { IHeadlessChromeDriverFactory } from "./HeadlessChromeDriverFactory";
 import { IHeadlessChromeDriver } from "./HeadlessChromeDriver";
 import { IHttpProxy } from "./HttpProxy";
 import { IHttpProxyFactory } from "./ProxyFactory";
-import { IHttpServer } from "./HttpServer";
+import { IHttpServer, HttpClientRequest } from "./HttpServer";
 import { IHttpServerFactory } from "./HttpServerFactory";
-import { logger } from "./Logger";
+import { Socket } from "net";
+import puppeteer from "puppeteer"
+import handlebars from "handlebars";
 
 export class HeadLessChromeServer {
-    static readonly defaultPoolSize = 10;
+    static readonly defaultPoolSize = 1;
     readonly poolSize: number;
     readonly httpProxy: IHttpProxy;
     readonly jobIdGenerator: IdGenerator
@@ -21,11 +23,14 @@ export class HeadLessChromeServer {
     runningProcesses: number[] = []
     readonly headlessChromeDriverFactory: IHeadlessChromeDriverFactory;
 
+
     constructor(chromeDriverFactory: IHeadlessChromeDriverFactory, proxyFactory: IHttpProxyFactory, httpServerFactory: IHttpServerFactory) {
         this.headlessChromeDriverFactory = chromeDriverFactory;
         this.poolSize = parseInt(process.env.POOL_SIZE) || HeadLessChromeServer.defaultPoolSize;
         this.httpProxy = proxyFactory.createInstance();
-        this.httpServer = httpServerFactory.createInstance().onUpgrade(this.handleRequest.bind(this));
+        this.httpServer = httpServerFactory.createInstance()
+            .addUpgradeListener(this.handleUpgrade.bind(this))
+            .addRequestListener("POST", "/pdf", this.handlePdfRequest.bind(this));
         this.jobIdGenerator = new IdGenerator();
         this.initialize();
     }
@@ -56,9 +61,29 @@ export class HeadLessChromeServer {
         this.httpServer.stop();
     }
 
-    private async handleRequest(req: http.IncomingMessage, socket: any, head: any) {
+    private async handleUpgrade(req: http.IncomingMessage, socket: Socket, head: Buffer) {
         let instance = await this.getInstance();
         this.httpProxy.sendToInstance(instance, req, socket, head);
+    }
+
+
+    private async handlePdfRequest(req: HttpClientRequest, res: http.ServerResponse) {
+        try{
+            let instance = await this.getInstance();
+            var browser = await puppeteer.connect({ browserWSEndpoint: instance.wsEndpoint });
+            var pages = (await browser.pages())
+            var page = (pages.length && pages[0]) || await browser.newPage();
+            await page.emulateMediaType("print")
+            const template = handlebars.compile(req.body.Html)
+            const content = template(req.body.Data)
+            await page.setContent(content)
+            const data = await page.pdf({ format: 'A4' })
+            res.writeHead(200, { 'Content-Type': 'application/pdf' })
+            res.write(data)
+            try{ await browser.disconnect(); }catch{}
+        }catch{
+            res.writeHead(500,"error al generar el pdf")            
+        }
     }
 
     private async createInstance() {

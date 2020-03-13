@@ -23,13 +23,13 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
         this.id = idGenerator.next();
         this.process = td.object<ChildProcess>();
 
-        td.replace(this.process, "pid", () => this.id);
+        td.replace(this.process, "pid", ()=>this.id);
 
         this.wsEndpoint = "ws://localhost:30000/";
         this.jobsLimit = 30;
         this.jobsTimeout = 30000;
     }
-    disposed: boolean=false
+    disposed: boolean = false
 
     browser = td.object<puppeteer.Browser>();
     jobsLimit: number;
@@ -73,7 +73,11 @@ class MockHeadlessChromeDriver extends EventEmitter implements IHeadlessChromeDr
 }
 
 class MockHttpServer extends EventEmitter implements IHttpServer {
-    onUpgrade(listener: (...args: any[]) => void): IHttpServer {
+    addRequestListener(method: string, path: string, listener: (...args: any[]) => void) {
+        return this;
+    }
+
+    addUpgradeListener(listener: (...args: any[]) => void): IHttpServer {
         this.on("upgrade", listener);
         return this;
     }
@@ -96,7 +100,7 @@ describe("HeadlessChromeServer", () => {
 
     let drivers: IHeadlessChromeDriver[];
 
-    afterEach(() => {
+    afterAll(() => {
         td.reset();
         process.removeAllListeners();
     });
@@ -109,7 +113,7 @@ describe("HeadlessChromeServer", () => {
         let driverMock = () => { return new MockHeadlessChromeDriver() };
         let httpProxyMock = td.object<IHttpProxy>();
 
-        drivers = Array.from({ length: HeadLessChromeServer.defaultPoolSize }, driverMock);
+        drivers = Array.from({ length: 20 }, driverMock);
 
         td.when(factoryProxyMock.createInstance()).thenReturn<IHttpProxy>(httpProxyMock);
         td.when(factoryServerMock.createInstance()).thenReturn<IHttpServer>(httpServerMock);
@@ -143,7 +147,7 @@ describe("HeadlessChromeServer", () => {
         const headlessChromeServer = new HeadLessChromeServer(factoryDriverMock, factoryProxyMock, factoryServerMock);
         await headlessChromeServer.start()
 
-        expect(process.getMaxListeners()).toBeGreaterThan(headlessChromeServer.poolSize *3);
+        expect(process.getMaxListeners()).toBeGreaterThan(headlessChromeServer.poolSize * 3);
     });
 
     it("idleBrowsers should be filled accordingly", async () => {
@@ -235,10 +239,10 @@ describe("HeadlessChromeServer", () => {
 
         let driver = headlessChromeServer.idleBrowsers[0];
 
-        Array.from({ length: headlessChromeServer.poolSize + 1 }, ()=>{
+        Array.from({ length: headlessChromeServer.poolSize + 1 }, () => {
             httpServerMock.emit("upgrade");
         });
-        
+
         expect(headlessChromeServer.idleBrowsers.length).toBe(0);
 
         driver.emit("job_end", driver);
