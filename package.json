@@ -13,7 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/handlebars": "^4.1.0",
-    "@types/http-proxy": "^1.17.3",
+    "@types/http-proxy": "^1.17.4",
     "@types/node": "^13.9.1",
     "@types/puppeteer": "^2.0.1",
     "@types/signale": "^1.2.1",
