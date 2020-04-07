@@ -16,7 +16,7 @@
     "@types/http-proxy": "^1.17.4",
     "@types/node": "^13.9.1",
     "@types/puppeteer": "^2.0.1",
-    "@types/signale": "^1.2.1",
+    "@types/signale": "^1.4.1",
     "figures": "^3.2.0",
     "handlebars": "^4.7.3",
     "http-proxy": "^1.18.0",
