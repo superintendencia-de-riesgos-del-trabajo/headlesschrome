@@ -61,9 +61,8 @@ interface LoggerOps {
     job_end(...msg)
     chrome_clear(...msg)
     job_limit_exceeded(...msg)
-
-    disable(); 
 }
+
 export class Logger extends Signale {
     constructor() {
         super(options)
