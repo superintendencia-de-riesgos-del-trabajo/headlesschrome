@@ -15,7 +15,7 @@
     "@types/handlebars": "^4.1.0",
     "@types/http-proxy": "^1.17.4",
     "@types/node": "^14.0.27",
-    "@types/puppeteer": "^3.0.1",
+    "@types/puppeteer": "^5.4.1",
     "@types/signale": "^1.4.1",
     "figures": "^3.2.0",
     "handlebars": "^4.7.6",
