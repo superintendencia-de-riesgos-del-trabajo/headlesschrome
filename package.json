@@ -21,7 +21,7 @@
     "handlebars": "^4.7.6",
     "http-proxy": "^1.18.1",
     "lodash": "^4.17.20",
-    "puppeteer": "^5.5.0",
+    "puppeteer": "^7.1.0",
     "signale": "^1.4.0",
     "tree-kill": "^1.2.2",
     "typescript": "^3.9.7"
