@@ -18,7 +18,7 @@
     "@types/puppeteer": "^5.4.2",
     "@types/signale": "^1.4.1",
     "figures": "^3.2.0",
-    "handlebars": "^4.7.6",
+    "handlebars": "^4.7.7",
     "http-proxy": "^1.18.1",
     "lodash": "^4.17.21",
     "puppeteer": "^5.5.0",
