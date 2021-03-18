@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@types/jest": "^26.0.20",
-    "expect-more": "^0.8.1",
+    "expect-more": "^1.0.1",
     "jest": "^25.5.4",
     "jest-extended": "^0.11.5",
     "testdouble": "^3.13.1",
