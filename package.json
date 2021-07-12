@@ -33,6 +33,6 @@
     "jest-extended": "^0.11.5",
     "testdouble": "^3.13.1",
     "ts-jest": "^25.5.1",
-    "ts-node": "^9.1.1"
+    "ts-node": "^10.1.0"
   }
 }
